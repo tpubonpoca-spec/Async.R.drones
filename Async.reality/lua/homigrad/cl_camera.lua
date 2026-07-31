@@ -330,6 +330,8 @@ CalcView = function(ply, origin, angles, fov, znear, zfar)
 			local isDrone = veh.LVSUAV or veh.IsDrone or veh.IsCrocusKamikaze or veh.IsKVNDrone or cls:find("crocus") or cls:find("kvn") or cls:find("drone") or cls:find("uav") or (veh.LVS and not veh.GetEngineMaxRPM)
 
 			if isDrone then
+				if not IsValid(veh) or (veh.GetHP and veh:GetHP() <= 0) or veh._lvsIsDestroyed then return end
+
 				local v = {}
 				local camAtt = veh:LookupAttachment("camera")
 				if camAtt == 0 then camAtt = veh:LookupAttachment("eyes") end
@@ -337,7 +339,9 @@ CalcView = function(ply, origin, angles, fov, znear, zfar)
 
 				if camAtt and camAtt > 0 then
 					local att = veh:GetAttachment(camAtt)
-					if att then v.origin = att.Pos end
+					if att and att.Pos and att.Pos ~= vector_origin then
+						v.origin = att.Pos
+					end
 				end
 
 				if not v.origin then

@@ -74,7 +74,7 @@ if CLIENT then
             veh = IsValid(parent) and parent or pod
         end
 
-        if not IsValid(veh) then return end
+        if not IsValid(veh) or (veh.GetHP and veh:GetHP() <= 0) or veh._lvsIsDestroyed then return end
 
         local cls = veh:GetClass():lower()
         local isDrone = veh.LVSUAV or veh.IsDrone or veh.IsCrocusKamikaze or veh.IsKVNDrone or cls:find("crocus") or cls:find("kvn") or cls:find("drone") or cls:find("uav")
@@ -89,7 +89,9 @@ if CLIENT then
 
             if camAtt and camAtt > 0 then
                 local att = veh:GetAttachment(camAtt)
-                if att then view.origin = att.Pos end
+                if att and att.Pos and att.Pos ~= vector_origin then
+                    view.origin = att.Pos
+                end
             end
 
             if not view.origin then
