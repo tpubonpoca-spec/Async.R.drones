@@ -68,7 +68,7 @@ if SERVER then
         end)
     end)
 
-    -- 2. 100% Защита пилота дрона от любого урона при взрыве дрона
+    -- 2. Защита оператора от дистанционного взрыва собственного дрона у цели
     hook.Add("EntityTakeDamage", "Async_LVS_ProtectRemoteOperatorFromExplosion", function(target, dmginfo)
         if not IsValid(target) or not target:IsPlayer() then return end
 
@@ -79,15 +79,18 @@ if SERVER then
         local isLVSDrone = drone.LVSUAV or drone.IsDrone or drone.IsCrocusKamikaze or drone.IsKVNDrone or cls:find("crocus") or cls:find("kvn") or cls:find("drone") or cls:find("uav")
 
         if isLVSDrone then
-            -- Блокируем любой урон взрыва, горения или детонации дрона пилоту
-            local dmgType = dmginfo:GetDamageType()
-            local inflictor = dmginfo:GetInflictor()
-            local attacker = dmginfo:GetAttacker()
+            -- Определение места взрыва и места оператора
+            local operatorPos = target.CrocusGroundPos or target.LVSGroundPos or target:GetPos()
+            local explosionPos = dmginfo:GetReportedPosition()
+            if not explosionPos or explosionPos == vector_origin then
+                explosionPos = dmginfo:GetDamagePosition()
+            end
+            if not explosionPos or explosionPos == vector_origin then
+                explosionPos = drone:GetPos()
+            end
 
-            local isSelfExplosion = (dmginfo:IsDamageType(DMG_BLAST) or dmginfo:IsDamageType(DMG_BURN) or dmginfo:IsDamageType(DMG_CRUSH))
-            local isDroneInflictor = (IsValid(inflictor) and (inflictor == drone or inflictor:GetParent() == drone)) or (IsValid(attacker) and attacker == drone)
-
-            if isSelfExplosion or isDroneInflictor or target:InVehicle() then
+            -- Если взрыв произошел в точке дрона дальше 150 юнитов от оператора на земле, отменяем сплеш урона
+            if operatorPos:Distance(explosionPos) > 150 then
                 dmginfo:SetDamage(0)
                 dmginfo:ScaleDamage(0)
                 return true
