@@ -1,10 +1,9 @@
 --[[
-    Master LVS FPV Drone Compatibility & Camera Fix for Z-City / Homigrad
-    Filename: zzzz_async_lvs_drone_master_fix.lua
+    Фикс FPV дронов для Z-City (Async.reality)
 --]]
 
 if SERVER then
-    -- 1. Universal Remote Operator Explosion Damage Protection
+    -- Защита оператора от взрыва своего дрона на расстоянии
     hook.Add("EntityTakeDamage", "ZZZZ_LVS_ProtectRemoteOperatorFromExplosion", function(target, dmginfo)
         if not IsValid(target) or not target:IsPlayer() then return end
 
@@ -27,7 +26,7 @@ if SERVER then
                 explosionPos = drone:GetPos()
             end
 
-            -- If explosion is farther than 200 units from the operator's ground position, cancel remote splash damage
+            -- Если взрыв дальше 200 юнитов от оператора на земле, блокируем урон
             if groundPos:Distance(explosionPos) > 200 then
                 dmginfo:SetDamage(0)
                 dmginfo:ScaleDamage(0)
@@ -38,7 +37,7 @@ if SERVER then
 end
 
 if CLIENT then
-    -- 2. Force Mouse Aim Steering for LVS Drones
+    -- Включение управления мышкой для дронов
     hook.Add("Think", "ZZZZ_LVS_ForceMouseAimForDrones", function()
         local ply = LocalPlayer()
         if not IsValid(ply) then return end
@@ -61,7 +60,7 @@ if CLIENT then
         end
     end)
 
-    -- 3. Master FPV Camera Fix: Locks 1:1 to drone frame and positions view on the front nose lens
+    -- Камера от 1 лица на носу дрона с фиксацией 1 к 1 по корпусу
     hook.Add("CalcView", "zzzz_LVS_Drone_Master_CalcView", function(ply, pos, angles, fov)
         if not IsValid(ply) or ply:GetViewEntity() ~= ply then return end
 
@@ -74,6 +73,7 @@ if CLIENT then
             veh = IsValid(parent) and parent or pod
         end
 
+        -- Сброс при уничтожении или сломанном объекте
         if not IsValid(veh) or (veh.GetHP and veh:GetHP() <= 0) or veh._lvsIsDestroyed then return end
 
         local cls = veh:GetClass():lower()
@@ -83,6 +83,7 @@ if CLIENT then
             local base = pod.lvsGetWeapon and pod:lvsGetWeapon() or nil
             local weapon = IsValid(base) and base:GetActiveWeapon() or (veh.GetActiveWeapon and veh:GetActiveWeapon() or nil)
 
+            -- Если у оружия дрона есть своя камера
             if weapon and weapon.CalcView then
                 local v = weapon.CalcView(veh, ply, pos, angles, fov, pod)
                 if istable(v) and isvector(v.origin) then
@@ -92,6 +93,7 @@ if CLIENT then
                 end
             end
 
+            -- Вынос камеры на передний объектив
             local view = {}
             local camAtt = veh:LookupAttachment("camera")
             if camAtt == 0 then camAtt = veh:LookupAttachment("eyes") end

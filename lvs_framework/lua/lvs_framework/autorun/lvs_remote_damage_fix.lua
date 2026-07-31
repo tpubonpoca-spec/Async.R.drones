@@ -1,5 +1,5 @@
 --[[
-    LVS Framework - Universal Remote Operator Explosion Damage Protection
+    LVS - Защита операторов дронов от урона при взрыве на расстоянии
 --]]
 
 if SERVER then
@@ -26,7 +26,7 @@ if SERVER then
                 explosionPos = drone:GetPos()
             end
 
-            -- If explosion happened at the drone location (farther than 200 units from the operator's ground position)
+            -- Если взрыв произошел дальше 200 юнитов от оператора на земле, блокируем урон
             if groundPos:Distance(explosionPos) > 200 then
                 dmginfo:SetDamage(0)
                 dmginfo:ScaleDamage(0)
