@@ -1,10 +1,13 @@
 --[[
     Фикс FPV дронов для Z-City (Async.reality)
+    Файл: lua/autorun/sh_async_lvs_drone_master_fix.lua
 --]]
 
 if SERVER then
-    -- Заставить сервер всегда передавать сетевые данные дронов клиенту (решает улет камеры за карту и черный экран)
-    hook.Add("OnEntityCreated", "ZZZZ_LVS_ForceTransmitAlwaysForDrones", function(ent)
+    AddCSLuaFile()
+
+    -- 1. Принудительная передача данных дрона на клиент (TRANSMIT_ALWAYS)
+    hook.Add("OnEntityCreated", "Async_LVS_ForceTransmitAlwaysForDrones", function(ent)
         timer.Simple(0, function()
             if IsValid(ent) then
                 local cls = ent:GetClass():lower()
@@ -18,8 +21,8 @@ if SERVER then
         end)
     end)
 
-    -- Защита оператора от взрыва своего дрона на расстоянии
-    hook.Add("EntityTakeDamage", "ZZZZ_LVS_ProtectRemoteOperatorFromExplosion", function(target, dmginfo)
+    -- 2. Защита оператора от взрыва своего дрона на расстоянии
+    hook.Add("EntityTakeDamage", "Async_LVS_ProtectRemoteOperatorFromExplosion", function(target, dmginfo)
         if not IsValid(target) or not target:IsPlayer() then return end
 
         local veh = target:GetVehicle()
@@ -52,8 +55,8 @@ if SERVER then
 end
 
 if CLIENT then
-    -- Включение управления мышкой для дронов
-    hook.Add("Think", "ZZZZ_LVS_ForceMouseAimForDrones", function()
+    -- 3. Включение управления мышкой для дронов
+    hook.Add("Think", "Async_LVS_ForceMouseAimForDrones", function()
         local ply = LocalPlayer()
         if not IsValid(ply) then return end
 
@@ -75,8 +78,8 @@ if CLIENT then
         end
     end)
 
-    -- Камера от 1 лица на носу дрона с фиксацией 1 к 1 по корпусу
-    hook.Add("CalcView", "zzzz_LVS_Drone_Master_CalcView", function(ply, pos, angles, fov)
+    -- 4. Камера от 1 лица на носу дрона с фиксацией 1 к 1 по корпусу
+    hook.Add("CalcView", "Async_LVS_Drone_Master_CalcView", function(ply, pos, angles, fov)
         if not IsValid(ply) or ply:GetViewEntity() ~= ply then return end
 
         local pod = ply:GetVehicle()
