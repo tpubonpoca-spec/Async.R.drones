@@ -321,9 +321,19 @@ CalcView = function(ply, origin, angles, fov, znear, zfar)
 		local pod = ply:GetVehicle()
 		local veh = ply.lvsGetVehicle and ply:lvsGetVehicle() or nil
 		if not IsValid(veh) and IsValid(pod) then
-			local parent = pod:GetParent()
-			veh = IsValid(parent) and parent or pod
+			veh = pod.LVSBase or pod.Base or pod:GetNWEntity("LVSBase") or pod:GetNWEntity("LVS_Entity") or pod:GetParent()
 		end
+
+		if not IsValid(veh) and IsValid(pod) then
+			for _, e in ipairs(ents.FindByClass("lvs_*")) do
+				if e.GetDriverSeat and e:GetDriverSeat() == pod then
+					veh = e
+					break
+				end
+			end
+		end
+
+		if not IsValid(veh) then veh = pod end
 
 		if IsValid(veh) then
 			local cls = veh:GetClass():lower()
@@ -331,6 +341,19 @@ CalcView = function(ply, origin, angles, fov, znear, zfar)
 
 			if isDrone then
 				if not IsValid(veh) or (veh.GetHP and veh:GetHP() <= 0) or veh._lvsIsDestroyed then return end
+
+				local base = pod.lvsGetWeapon and pod:lvsGetWeapon() or nil
+				local weapon = IsValid(base) and base:GetActiveWeapon() or (veh.GetActiveWeapon and veh:GetActiveWeapon() or nil)
+
+				if weapon and weapon.CalcView then
+					local v = weapon.CalcView(veh, ply, origin, angles, fov, pod)
+					if istable(v) and isvector(v.origin) then
+						v.angles = veh:GetAngles()
+						v.fov = math.Clamp(v.fov or fov or 75, 30, 110)
+						v.drawviewer = false
+						return v
+					end
+				end
 
 				local v = {}
 				local camAtt = veh:LookupAttachment("camera")
@@ -349,7 +372,7 @@ CalcView = function(ply, origin, angles, fov, znear, zfar)
 				end
 
 				v.angles = veh:GetAngles()
-				v.fov = math.Clamp(viewOverride and viewOverride.fov or fov or 75, 30, 110)
+				v.fov = math.Clamp(fov or 75, 30, 110)
 				v.drawviewer = false
 				return v
 			end

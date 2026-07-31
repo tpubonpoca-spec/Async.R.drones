@@ -19,6 +19,29 @@ local debug_info = {
     error_msg = "OK"
 }
 
+local function GetLVSVehicle(ply)
+    if not IsValid(ply) or not ply:InVehicle() then return nil end
+
+    local pod = ply:GetVehicle()
+    if not IsValid(pod) then return nil end
+
+    local veh = ply.lvsGetVehicle and ply:lvsGetVehicle() or nil
+    if not IsValid(veh) then
+        veh = pod.LVSBase or pod.Base or pod:GetNWEntity("LVSBase") or pod:GetNWEntity("LVS_Entity") or pod:GetParent()
+    end
+
+    if not IsValid(veh) then
+        for _, e in ipairs(ents.FindByClass("lvs_*")) do
+            if e.GetDriverSeat and e:GetDriverSeat() == pod then
+                veh = e
+                break
+            end
+        end
+    end
+
+    return IsValid(veh) and veh or pod
+end
+
 -- 1. Перехват параметров камеры для отладки
 hook.Add("CalcView", "Async_LVS_Drone_Debug_CalcView", function(ply, pos, angles, fov)
     if not IsValid(ply) or not ply:InVehicle() then
@@ -30,11 +53,7 @@ hook.Add("CalcView", "Async_LVS_Drone_Debug_CalcView", function(ply, pos, angles
     local pod = ply:GetVehicle()
     debug_info.pod_valid = IsValid(pod)
 
-    local veh = ply.lvsGetVehicle and ply:lvsGetVehicle() or nil
-    if not IsValid(veh) and IsValid(pod) then
-        local parent = pod:GetParent()
-        veh = IsValid(parent) and parent or pod
-    end
+    local veh = GetLVSVehicle(ply)
 
     debug_info.veh_valid = IsValid(veh)
     if IsValid(veh) then

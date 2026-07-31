@@ -55,20 +55,35 @@ if SERVER then
 end
 
 if CLIENT then
+    local function GetLVSVehicle(ply)
+        if not IsValid(ply) or not ply:InVehicle() then return nil end
+
+        local pod = ply:GetVehicle()
+        if not IsValid(pod) then return nil end
+
+        local veh = ply.lvsGetVehicle and ply:lvsGetVehicle() or nil
+        if not IsValid(veh) then
+            veh = pod.LVSBase or pod.Base or pod:GetNWEntity("LVSBase") or pod:GetNWEntity("LVS_Entity") or pod:GetParent()
+        end
+
+        if not IsValid(veh) then
+            for _, e in ipairs(ents.FindByClass("lvs_*")) do
+                if e.GetDriverSeat and e:GetDriverSeat() == pod then
+                    veh = e
+                    break
+                end
+            end
+        end
+
+        return IsValid(veh) and veh or pod
+    end
+
     -- 3. Включение управления мышкой для дронов
     hook.Add("Think", "Async_LVS_ForceMouseAimForDrones", function()
         local ply = LocalPlayer()
         if not IsValid(ply) then return end
 
-        local veh = ply.lvsGetVehicle and ply:lvsGetVehicle() or nil
-        if not IsValid(veh) and ply:InVehicle() then
-            local pod = ply:GetVehicle()
-            if IsValid(pod) then
-                local parent = pod:GetParent()
-                veh = IsValid(parent) and parent or pod
-            end
-        end
-
+        local veh = GetLVSVehicle(ply)
         if IsValid(veh) then
             local cls = veh:GetClass():lower()
             local isDrone = veh.LVSUAV or veh.IsDrone or veh.IsCrocusKamikaze or veh.IsKVNDrone or cls:find("crocus") or cls:find("kvn") or cls:find("drone") or cls:find("uav")
@@ -85,13 +100,7 @@ if CLIENT then
         local pod = ply:GetVehicle()
         if not IsValid(pod) then return end
 
-        local veh = ply.lvsGetVehicle and ply:lvsGetVehicle() or nil
-        if not IsValid(veh) then
-            local parent = pod:GetParent()
-            veh = IsValid(parent) and parent or pod
-        end
-
-        -- Сброс при уничтожении или сломанном объекте
+        local veh = GetLVSVehicle(ply)
         if not IsValid(veh) or (veh.GetHP and veh:GetHP() <= 0) or veh._lvsIsDestroyed then return end
 
         local cls = veh:GetClass():lower()
@@ -101,7 +110,7 @@ if CLIENT then
             local base = pod.lvsGetWeapon and pod:lvsGetWeapon() or nil
             local weapon = IsValid(base) and base:GetActiveWeapon() or (veh.GetActiveWeapon and veh:GetActiveWeapon() or nil)
 
-            -- Если у оружия дрона есть своя камера
+            -- Если у оружия дрона есть своя камера (например, KVN)
             if weapon and weapon.CalcView then
                 local v = weapon.CalcView(veh, ply, pos, angles, fov, pod)
                 if istable(v) and isvector(v.origin) then
