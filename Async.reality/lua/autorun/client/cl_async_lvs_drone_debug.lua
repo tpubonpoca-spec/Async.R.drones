@@ -22,18 +22,25 @@ local debug_info = {
 local function GetLVSVehicle(ply)
     if not IsValid(ply) then return nil end
 
-    if ply.lvsGetVehicle then
-        local v = ply:lvsGetVehicle()
-        if IsValid(v) then return v end
-    end
-
     if ply:InVehicle() then
         local pod = ply:GetVehicle()
         if IsValid(pod) then
-            local veh = pod.LVSBase or pod.Base or pod:GetNWEntity("LVSBase") or pod:GetNWEntity("LVS_Entity") or pod:GetParent()
-            if IsValid(veh) then return veh end
+            local veh = pod:GetNWEntity("LVS_Entity") or pod:GetNWEntity("LVSBase") or pod.LVSBase or pod.Base or pod:GetParent()
+            if IsValid(veh) and veh ~= pod then return veh end
+
+            for _, e in ipairs(ents.FindByClass("lvs_*")) do
+                if e.GetDriverSeat and e:GetDriverSeat() == pod then
+                    return e
+                end
+            end
+
             return pod
         end
+    end
+
+    if ply.lvsGetVehicle then
+        local v = ply:lvsGetVehicle()
+        if IsValid(v) then return v end
     end
 
     return nil
