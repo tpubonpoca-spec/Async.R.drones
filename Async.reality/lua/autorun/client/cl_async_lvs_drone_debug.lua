@@ -16,7 +16,7 @@ local debug_info = {
     dist_to_operator = 0,
     last_hook = "none",
     is_drone = false,
-    error_msg = "ОК"
+    error_msg = "ОК (Ожидание дрона)"
 }
 
 local function GetLVSVehicle(ply)
@@ -73,6 +73,13 @@ hook.Add("CalcView", "Async_LVS_Drone_Debug_CalcView", function(ply, pos, angles
     local veh = GetLVSVehicle(ply)
     if not IsValid(veh) then
         debug_info.in_vehicle = false
+        debug_info.veh_class = "none"
+        debug_info.is_drone = false
+        debug_info.dist_to_operator = 0
+        debug_info.cam_origin = pos
+        debug_info.cam_angles = angles
+        debug_info.cam_fov = fov
+        debug_info.error_msg = "ОК (Ожидание дрона)"
         return
     end
 
@@ -83,8 +90,8 @@ hook.Add("CalcView", "Async_LVS_Drone_Debug_CalcView", function(ply, pos, angles
     local cls = debug_info.veh_class:lower()
     debug_info.is_drone = veh.LVSUAV or veh.IsDrone or veh.IsCrocusKamikaze or veh.IsKVNDrone or cls:find("crocus") or cls:find("kvn") or cls:find("drone") or cls:find("uav")
 
-    local groundPos = ply.CrocusGroundPos or ply.LVSGroundPos or ply:GetPos()
-    debug_info.dist_to_operator = math.Round(groundPos:Distance(veh:GetPos()) / 39.37)
+    local operatorPos = ply.CrocusGroundPos or ply.LVSGroundPos or ply:GetPos()
+    debug_info.dist_to_operator = math.Round(operatorPos:Distance(veh:GetPos()) / 39.37)
 
     debug_info.cam_origin = veh:GetPos()
     debug_info.cam_angles = veh:GetAngles()
@@ -94,23 +101,18 @@ hook.Add("CalcView", "Async_LVS_Drone_Debug_CalcView", function(ply, pos, angles
     -- Проверка аномалий (улет за карту, кривой FOV)
     if fov and (fov > 120 or fov < 10) then
         debug_info.error_msg = "ВНИМАНИЕ: Аномальный FOV! (" .. tostring(fov) .. ")"
-        print("[DRONE DEBUG ERROR] Аномальный FOV:", fov)
     elseif pos and pos:Length() > 100000 then
         debug_info.error_msg = "ОШИБКА: Камера улетела за пределы карты!"
-        print("[DRONE DEBUG ERROR] Камера за картой:", pos)
     else
-        debug_info.error_msg = "ОК"
+        debug_info.error_msg = "АКТИВЕН (ОК)"
     end
 end)
 
--- 2. Отрисовка отладочного HUD на экране (в правом верхнем углу, чтобы не перекрывать OSD)
+-- 2. Постоянная отрисовка отладочного HUD в правом верхнем углу
 hook.Add("HUDPaint", "Async_LVS_Drone_Debug_HUD", function()
     if not GetConVar("async_drone_debug"):GetBool() then return end
     local ply = LocalPlayer()
     if not IsValid(ply) then return end
-
-    local veh = GetLVSVehicle(ply)
-    if not IsValid(veh) then return end
 
     local w, h = 360, 210
     local x, y = ScrW() - w - 20, 20
@@ -121,7 +123,7 @@ hook.Add("HUDPaint", "Async_LVS_Drone_Debug_HUD", function()
     surface.DrawOutlinedRect(x, y, w, h, 2)
 
     draw.SimpleText("=== ОТЛАДКА ДРОНА (Async.reality) ===", "DermaDefaultBold", x + 10, y + 10, Color(0, 255, 200), TEXT_ALIGN_LEFT)
-    draw.SimpleText("Управление дроном: " .. tostring(debug_info.in_vehicle), "DermaDefault", x + 10, y + 30, Color(255, 255, 255), TEXT_ALIGN_LEFT)
+    draw.SimpleText("Управление дроном: " .. tostring(debug_info.in_vehicle), "DermaDefault", x + 10, y + 30, debug_info.in_vehicle and Color(0, 255, 0) or Color(200, 200, 200), TEXT_ALIGN_LEFT)
     draw.SimpleText("Модель дрона: " .. tostring(debug_info.veh_class), "DermaDefault", x + 10, y + 45, debug_info.is_drone and Color(0, 255, 0) or Color(255, 200, 0), TEXT_ALIGN_LEFT)
     draw.SimpleText("Распознан как FPV дрон: " .. tostring(debug_info.is_drone), "DermaDefault", x + 10, y + 60, debug_info.is_drone and Color(0, 255, 0) or Color(255, 50, 50), TEXT_ALIGN_LEFT)
     draw.SimpleText("Дистанция до пилота: " .. tostring(debug_info.dist_to_operator) .. " м", "DermaDefault", x + 10, y + 75, Color(255, 255, 255), TEXT_ALIGN_LEFT)
@@ -133,6 +135,6 @@ hook.Add("HUDPaint", "Async_LVS_Drone_Debug_HUD", function()
     local ang = debug_info.cam_angles
     draw.SimpleText(string.format("Дрон Ang: P:%.1f Y:%.1f R:%.1f", ang.p, ang.y, ang.r), "DermaDefault", x + 10, y + 125, Color(200, 200, 200), TEXT_ALIGN_LEFT)
     
-    draw.SimpleText("Статус: " .. debug_info.error_msg, "DermaDefaultBold", x + 10, y + 150, debug_info.error_msg == "ОК" and Color(0, 255, 0) or Color(255, 50, 50), TEXT_ALIGN_LEFT)
+    draw.SimpleText("Статус: " .. debug_info.error_msg, "DermaDefaultBold", x + 10, y + 150, debug_info.in_vehicle and Color(0, 255, 0) or Color(200, 200, 200), TEXT_ALIGN_LEFT)
     draw.SimpleText("Выключить HUD: async_drone_debug 0", "DermaDefault", x + 10, y + 175, Color(150, 150, 150), TEXT_ALIGN_LEFT)
 end)

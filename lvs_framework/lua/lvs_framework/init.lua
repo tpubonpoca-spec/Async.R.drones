@@ -68,7 +68,7 @@ if CLIENT then
 	return
 end
 
-resource.AddWorkshop("2912816023")
+-- resource.AddWorkshop("2912816023")
 
 local ValveWierdBlastDamageClass = {
 	["npc_strider"] = true, -- takes 70 damage for each blast damage as constant value ...
