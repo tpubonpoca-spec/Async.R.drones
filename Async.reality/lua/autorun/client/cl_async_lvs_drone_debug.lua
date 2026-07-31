@@ -12,7 +12,7 @@ local debug_info = {
     veh_valid = false,
     cam_origin = Vector(0,0,0),
     cam_angles = Angle(0,0,0),
-    cam_fov = 0,
+    cam_fov = 75,
     dist_to_operator = 0,
     last_hook = "none",
     is_drone = false,
@@ -21,22 +21,6 @@ local debug_info = {
 
 local function GetLVSVehicle(ply)
     if not IsValid(ply) then return nil end
-
-    if ply.lvsGetVehicle then
-        local v = ply:lvsGetVehicle()
-        if IsValid(v) then return v end
-    end
-
-    if IsValid(ply.LVS_Vehicle) then return ply.LVS_Vehicle end
-
-    local nwVeh = ply:GetNWEntity("LVS_Vehicle")
-    if IsValid(nwVeh) then return nwVeh end
-
-    local activeDrone = ply:GetNWEntity("KVN_ActiveDrone")
-    if IsValid(activeDrone) then return activeDrone end
-
-    local uav = ply:GetNWEntity("UAV")
-    if IsValid(uav) then return uav end
 
     if ply:InVehicle() then
         local pod = ply:GetVehicle()
@@ -54,6 +38,22 @@ local function GetLVSVehicle(ply)
         end
     end
 
+    if ply.lvsGetVehicle then
+        local v = ply:lvsGetVehicle()
+        if IsValid(v) then return v end
+    end
+
+    if IsValid(ply.LVS_Vehicle) then return ply.LVS_Vehicle end
+
+    local nwVeh = ply:GetNWEntity("LVS_Vehicle")
+    if IsValid(nwVeh) then return nwVeh end
+
+    local activeDrone = ply:GetNWEntity("KVN_ActiveDrone")
+    if IsValid(activeDrone) then return activeDrone end
+
+    local uav = ply:GetNWEntity("UAV")
+    if IsValid(uav) then return uav end
+
     for _, e in ipairs(ents.FindByClass("lvs_*")) do
         if e.GetDriver and e:GetDriver() == ply then
             return e
@@ -66,53 +66,36 @@ local function GetLVSVehicle(ply)
     return nil
 end
 
--- 1. Перехват параметров камеры для отладки
-hook.Add("CalcView", "Async_LVS_Drone_Debug_CalcView", function(ply, pos, angles, fov)
-    if not IsValid(ply) then return end
-
-    local veh = GetLVSVehicle(ply)
-    if not IsValid(veh) then
-        debug_info.in_vehicle = false
-        debug_info.veh_class = "none"
-        debug_info.is_drone = false
-        debug_info.dist_to_operator = 0
-        debug_info.cam_origin = pos
-        debug_info.cam_angles = angles
-        debug_info.cam_fov = fov
-        debug_info.error_msg = "ОК (Ожидание дрона)"
-        return
-    end
-
-    debug_info.in_vehicle = true
-    debug_info.veh_valid = true
-    debug_info.veh_class = veh:GetClass()
-
-    local cls = debug_info.veh_class:lower()
-    debug_info.is_drone = veh.LVSUAV or veh.IsDrone or veh.IsCrocusKamikaze or veh.IsKVNDrone or cls:find("crocus") or cls:find("kvn") or cls:find("drone") or cls:find("uav")
-
-    local operatorPos = ply.CrocusGroundPos or ply.LVSGroundPos or ply:GetPos()
-    debug_info.dist_to_operator = math.Round(operatorPos:Distance(veh:GetPos()) / 39.37)
-
-    debug_info.cam_origin = veh:GetPos()
-    debug_info.cam_angles = veh:GetAngles()
-    debug_info.cam_fov = fov
-    debug_info.last_hook = "Async_LVS_Drone_Debug_CalcView"
-
-    -- Проверка аномалий (улет за карту, кривой FOV)
-    if fov and (fov > 120 or fov < 10) then
-        debug_info.error_msg = "ВНИМАНИЕ: Аномальный FOV! (" .. tostring(fov) .. ")"
-    elseif pos and pos:Length() > 100000 then
-        debug_info.error_msg = "ОШИБКА: Камера улетела за пределы карты!"
-    else
-        debug_info.error_msg = "АКТИВЕН (ОК)"
-    end
-end)
-
--- 2. Постоянная отрисовка отладочного HUD в правом верхнем углу
+-- 1. Отрисовка отладочного HUD в правом верхнем углу
 hook.Add("HUDPaint", "Async_LVS_Drone_Debug_HUD", function()
     if not GetConVar("async_drone_debug"):GetBool() then return end
     local ply = LocalPlayer()
     if not IsValid(ply) then return end
+
+    local veh = GetLVSVehicle(ply)
+    if IsValid(veh) then
+        local cls = veh:GetClass()
+        local cls_l = cls:lower()
+        local isDrone = veh.LVSUAV or veh.IsDrone or veh.IsCrocusKamikaze or veh.IsKVNDrone or cls_l:find("crocus") or cls_l:find("kvn") or cls_l:find("drone") or cls_l:find("uav")
+
+        debug_info.in_vehicle = true
+        debug_info.veh_class = cls
+        debug_info.is_drone = isDrone
+        debug_info.cam_origin = veh:GetPos()
+        debug_info.cam_angles = veh:GetAngles()
+
+        local operatorPos = ply.CrocusGroundPos or ply.LVSGroundPos or ply:GetPos()
+        debug_info.dist_to_operator = math.Round(operatorPos:Distance(veh:GetPos()) / 39.37)
+        debug_info.error_msg = "АКТИВЕН (ОК)"
+    else
+        debug_info.in_vehicle = false
+        debug_info.veh_class = "none"
+        debug_info.is_drone = false
+        debug_info.dist_to_operator = 0
+        debug_info.cam_origin = ply:GetPos()
+        debug_info.cam_angles = ply:EyeAngles()
+        debug_info.error_msg = "ОК (Ожидание дрона)"
+    end
 
     local w, h = 360, 210
     local x, y = ScrW() - w - 20, 20
@@ -127,7 +110,7 @@ hook.Add("HUDPaint", "Async_LVS_Drone_Debug_HUD", function()
     draw.SimpleText("Модель дрона: " .. tostring(debug_info.veh_class), "DermaDefault", x + 10, y + 45, debug_info.is_drone and Color(0, 255, 0) or Color(255, 200, 0), TEXT_ALIGN_LEFT)
     draw.SimpleText("Распознан как FPV дрон: " .. tostring(debug_info.is_drone), "DermaDefault", x + 10, y + 60, debug_info.is_drone and Color(0, 255, 0) or Color(255, 50, 50), TEXT_ALIGN_LEFT)
     draw.SimpleText("Дистанция до пилота: " .. tostring(debug_info.dist_to_operator) .. " м", "DermaDefault", x + 10, y + 75, Color(255, 255, 255), TEXT_ALIGN_LEFT)
-    draw.SimpleText("Текущий FOV: " .. tostring(math.Round(debug_info.cam_fov or 0, 1)), "DermaDefault", x + 10, y + 90, (debug_info.cam_fov > 120 or debug_info.cam_fov < 10) and Color(255, 50, 50) or Color(255, 255, 255), TEXT_ALIGN_LEFT)
+    draw.SimpleText("Текущий FOV: " .. tostring(math.Round(debug_info.cam_fov or 75, 1)), "DermaDefault", x + 10, y + 90, Color(255, 255, 255), TEXT_ALIGN_LEFT)
     
     local org = debug_info.cam_origin
     draw.SimpleText(string.format("Дрон Pos: X:%.0f Y:%.0f Z:%.0f", org.x, org.y, org.z), "DermaDefault", x + 10, y + 110, Color(200, 200, 200), TEXT_ALIGN_LEFT)
