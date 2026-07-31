@@ -68,7 +68,7 @@ if SERVER then
         end)
     end)
 
-    -- 2. Полная защита удаленного оператора от урона взрыва дрона
+    -- 2. 100% Защита пилота дрона от любого урона при взрыве дрона
     hook.Add("EntityTakeDamage", "Async_LVS_ProtectRemoteOperatorFromExplosion", function(target, dmginfo)
         if not IsValid(target) or not target:IsPlayer() then return end
 
@@ -79,17 +79,15 @@ if SERVER then
         local isLVSDrone = drone.LVSUAV or drone.IsDrone or drone.IsCrocusKamikaze or drone.IsKVNDrone or cls:find("crocus") or cls:find("kvn") or cls:find("drone") or cls:find("uav")
 
         if isLVSDrone then
-            local operatorPos = target:GetPos()
-            local explosionPos = dmginfo:GetReportedPosition()
-            if not explosionPos or explosionPos == vector_origin then
-                explosionPos = dmginfo:GetDamagePosition()
-            end
-            if not explosionPos or explosionPos == vector_origin then
-                explosionPos = drone:GetPos()
-            end
+            -- Блокируем любой урон взрыва, горения или детонации дрона пилоту
+            local dmgType = dmginfo:GetDamageType()
+            local inflictor = dmginfo:GetInflictor()
+            local attacker = dmginfo:GetAttacker()
 
-            -- Если оператор находится дальше 150 юнитов от взрыва дрона, блокируем урон полностью
-            if operatorPos:Distance(explosionPos) > 150 then
+            local isSelfExplosion = (dmginfo:IsDamageType(DMG_BLAST) or dmginfo:IsDamageType(DMG_BURN) or dmginfo:IsDamageType(DMG_CRUSH))
+            local isDroneInflictor = (IsValid(inflictor) and (inflictor == drone or inflictor:GetParent() == drone)) or (IsValid(attacker) and attacker == drone)
+
+            if isSelfExplosion or isDroneInflictor or target:InVehicle() then
                 dmginfo:SetDamage(0)
                 dmginfo:ScaleDamage(0)
                 return true
@@ -114,7 +112,7 @@ if CLIENT then
         end
     end)
 
-    -- 4. Камера от 1 лица строго с объектива дрона (без вызова головы игрока)
+    -- 4. Камера от 1 лица строго с объектива дрона
     hook.Add("CalcView", "Async_LVS_Drone_Master_CalcView", function(ply, pos, angles, fov)
         if not IsValid(ply) or ply:GetViewEntity() ~= ply then return end
 
@@ -129,7 +127,7 @@ if CLIENT then
             local base = IsValid(pod) and (pod.lvsGetWeapon and pod:lvsGetWeapon() or nil) or nil
             local weapon = IsValid(base) and base:GetActiveWeapon() or (veh.GetActiveWeapon and veh:GetActiveWeapon() or nil)
 
-            -- Если у оружия дрона есть своя FPV камера (например, KVN)
+            -- Приоритет родной FPV-камеры дрона
             if weapon and weapon.CalcView then
                 local v = weapon.CalcView(veh, ply, pos, angles, fov, pod)
                 if istable(v) and isvector(v.origin) then

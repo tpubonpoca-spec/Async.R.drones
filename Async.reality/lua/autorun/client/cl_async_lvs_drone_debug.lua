@@ -83,11 +83,11 @@ hook.Add("CalcView", "Async_LVS_Drone_Debug_CalcView", function(ply, pos, angles
     local cls = debug_info.veh_class:lower()
     debug_info.is_drone = veh.LVSUAV or veh.IsDrone or veh.IsCrocusKamikaze or veh.IsKVNDrone or cls:find("crocus") or cls:find("kvn") or cls:find("drone") or cls:find("uav")
 
-    local operatorPos = ply:GetPos()
-    debug_info.dist_to_operator = math.Round(operatorPos:Distance(veh:GetPos()) / 39.37)
+    local groundPos = ply.CrocusGroundPos or ply.LVSGroundPos or ply:GetPos()
+    debug_info.dist_to_operator = math.Round(groundPos:Distance(veh:GetPos()) / 39.37)
 
-    debug_info.cam_origin = pos
-    debug_info.cam_angles = angles
+    debug_info.cam_origin = veh:GetPos()
+    debug_info.cam_angles = veh:GetAngles()
     debug_info.cam_fov = fov
     debug_info.last_hook = "Async_LVS_Drone_Debug_CalcView"
 
@@ -128,10 +128,10 @@ hook.Add("HUDPaint", "Async_LVS_Drone_Debug_HUD", function()
     draw.SimpleText("Текущий FOV: " .. tostring(math.Round(debug_info.cam_fov or 0, 1)), "DermaDefault", x + 10, y + 90, (debug_info.cam_fov > 120 or debug_info.cam_fov < 10) and Color(255, 50, 50) or Color(255, 255, 255), TEXT_ALIGN_LEFT)
     
     local org = debug_info.cam_origin
-    draw.SimpleText(string.format("Камера Pos: X:%.0f Y:%.0f Z:%.0f", org.x, org.y, org.z), "DermaDefault", x + 10, y + 110, Color(200, 200, 200), TEXT_ALIGN_LEFT)
+    draw.SimpleText(string.format("Дрон Pos: X:%.0f Y:%.0f Z:%.0f", org.x, org.y, org.z), "DermaDefault", x + 10, y + 110, Color(200, 200, 200), TEXT_ALIGN_LEFT)
     
     local ang = debug_info.cam_angles
-    draw.SimpleText(string.format("Камера Ang: P:%.1f Y:%.1f R:%.1f", ang.p, ang.y, ang.r), "DermaDefault", x + 10, y + 125, Color(200, 200, 200), TEXT_ALIGN_LEFT)
+    draw.SimpleText(string.format("Дрон Ang: P:%.1f Y:%.1f R:%.1f", ang.p, ang.y, ang.r), "DermaDefault", x + 10, y + 125, Color(200, 200, 200), TEXT_ALIGN_LEFT)
     
     draw.SimpleText("Статус: " .. debug_info.error_msg, "DermaDefaultBold", x + 10, y + 150, debug_info.error_msg == "ОК" and Color(0, 255, 0) or Color(255, 50, 50), TEXT_ALIGN_LEFT)
     draw.SimpleText("Выключить HUD: async_drone_debug 0", "DermaDefault", x + 10, y + 175, Color(150, 150, 150), TEXT_ALIGN_LEFT)
