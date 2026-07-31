@@ -80,9 +80,19 @@ if CLIENT then
         local isDrone = veh.LVSUAV or veh.IsDrone or veh.IsCrocusKamikaze or veh.IsKVNDrone or cls:find("crocus") or cls:find("kvn") or cls:find("drone") or cls:find("uav")
 
         if isDrone then
-            local view = {}
+            local base = pod.lvsGetWeapon and pod:lvsGetWeapon() or nil
+            local weapon = IsValid(base) and base:GetActiveWeapon() or (veh.GetActiveWeapon and veh:GetActiveWeapon() or nil)
 
-            -- Determine FPV Camera Origin at the Front Nose Lens
+            if weapon and weapon.CalcView then
+                local v = weapon.CalcView(veh, ply, pos, angles, fov, pod)
+                if istable(v) and isvector(v.origin) then
+                    v.angles = veh:GetAngles()
+                    v.drawviewer = false
+                    return v
+                end
+            end
+
+            local view = {}
             local camAtt = veh:LookupAttachment("camera")
             if camAtt == 0 then camAtt = veh:LookupAttachment("eyes") end
             if camAtt == 0 then camAtt = veh:LookupAttachment("fpv") end
@@ -95,11 +105,9 @@ if CLIENT then
             end
 
             if not view.origin then
-                -- Position at front nose lens of the drone
                 view.origin = veh:LocalToWorld(Vector(15, 0, 4))
             end
 
-            -- Lock camera angles 1:1 rigidly to the drone frame
             view.angles = veh:GetAngles()
             view.fov = fov or 75
             view.drawviewer = false
