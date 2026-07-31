@@ -3,7 +3,8 @@
     Файл: lua/autorun/client/cl_async_lvs_drone_debug.lua
 --]]
 
-CreateClientConVar("async_drone_debug", "1", true, false, "Показывать экранную отладку дронов (1 - вкл, 0 - выкл)")
+-- Отладка по умолчанию ВЫКЛЮЧЕНА (0). Включить при необходимости: async_drone_debug 1
+CreateClientConVar("async_drone_debug", "0", true, false, "Показывать экранную отладку дронов (1 - вкл, 0 - выкл)")
 
 local debug_info = {
     in_vehicle = false,
