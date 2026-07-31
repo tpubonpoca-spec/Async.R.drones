@@ -349,7 +349,7 @@ CalcView = function(ply, origin, angles, fov, znear, zfar)
 				end
 
 				v.angles = veh:GetAngles()
-				v.fov = fov or 75
+				v.fov = math.Clamp(viewOverride and viewOverride.fov or fov or 75, 30, 110)
 				v.drawviewer = false
 				return v
 			end
@@ -794,7 +794,7 @@ local function renderscene(pos, angle, fov)
 
 	renderView.w = scrw
 	renderView.h = scrh
-	renderView.fov = fov
+	renderView.fov = math.Clamp(view and view.fov or fov or 75, 30, 110)
 	renderView.origin = view.origin
 	renderView.angles = view.angles
 	if mapswithfog[map] then

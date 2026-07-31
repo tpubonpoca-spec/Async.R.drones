@@ -88,6 +88,7 @@ if CLIENT then
                 local v = weapon.CalcView(veh, ply, pos, angles, fov, pod)
                 if istable(v) and isvector(v.origin) then
                     v.angles = veh:GetAngles()
+                    v.fov = math.Clamp(v.fov or fov or 75, 30, 110)
                     v.drawviewer = false
                     return v
                 end
@@ -111,7 +112,7 @@ if CLIENT then
             end
 
             view.angles = veh:GetAngles()
-            view.fov = fov or 75
+            view.fov = math.Clamp(fov or 75, 30, 110)
             view.drawviewer = false
 
             return view

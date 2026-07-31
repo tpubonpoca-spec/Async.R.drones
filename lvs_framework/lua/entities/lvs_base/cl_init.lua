@@ -9,17 +9,15 @@ include("cl_seatswitcher.lua")
 include("cl_trailsystem.lua")
 include("cl_boneposeparemeter.lua")
 
-local Zoom = 0
-
 function ENT:LVSCalcFov( fov, ply )
-
+	local baseFov = math.Clamp( fov or 75, 30, 110 )
 	local TargetZoom = ply:lvsKeyDown( "ZOOM" ) and 0 or 1
 
-	Zoom = Zoom + (TargetZoom - Zoom) * RealFrameTime() * 10
+	self._lvsZoom = (self._lvsZoom or 0) + (TargetZoom - (self._lvsZoom or 0)) * RealFrameTime() * 10
 
-	local newfov = fov * Zoom + (self.ZoomFov or 40) * (1 - Zoom)
+	local newfov = baseFov * self._lvsZoom + (self.ZoomFov or 40) * (1 - self._lvsZoom)
 
-	return newfov
+	return math.Clamp( newfov, 30, 110 )
 end
 
 function ENT:LVSCalcView( ply, pos, angles, fov, pod )
