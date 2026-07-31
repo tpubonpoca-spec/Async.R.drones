@@ -3,6 +3,53 @@
     Файл: lua/autorun/sh_async_lvs_drone_master_fix.lua
 --]]
 
+local function GetLVSVehicle(ply)
+    if not IsValid(ply) then return nil end
+
+    if ply.lvsGetVehicle then
+        local v = ply:lvsGetVehicle()
+        if IsValid(v) then return v end
+    end
+
+    if IsValid(ply.LVS_Vehicle) then return ply.LVS_Vehicle end
+
+    local nwVeh = ply:GetNWEntity("LVS_Vehicle")
+    if IsValid(nwVeh) then return nwVeh end
+
+    local activeDrone = ply:GetNWEntity("KVN_ActiveDrone")
+    if IsValid(activeDrone) then return activeDrone end
+
+    local uav = ply:GetNWEntity("UAV")
+    if IsValid(uav) then return uav end
+
+    if ply:InVehicle() then
+        local pod = ply:GetVehicle()
+        if IsValid(pod) then
+            local veh = pod:GetNWEntity("LVS_Entity") or pod:GetNWEntity("LVSBase") or pod.LVSBase or pod.Base or pod:GetParent()
+            if IsValid(veh) and veh ~= pod then return veh end
+
+            for _, e in ipairs(ents.FindByClass("lvs_*")) do
+                if e.GetDriverSeat and e:GetDriverSeat() == pod then
+                    return e
+                end
+            end
+
+            return pod
+        end
+    end
+
+    for _, e in ipairs(ents.FindByClass("lvs_*")) do
+        if e.GetDriver and e:GetDriver() == ply then
+            return e
+        end
+        if e.GetOperator and e:GetOperator() == ply then
+            return e
+        end
+    end
+
+    return nil
+end
+
 if SERVER then
     AddCSLuaFile()
 
@@ -21,21 +68,18 @@ if SERVER then
         end)
     end)
 
-    -- 2. Защита оператора от взрыва своего дрона на расстоянии
+    -- 2. Полная защита удаленного оператора от урона взрыва дрона
     hook.Add("EntityTakeDamage", "Async_LVS_ProtectRemoteOperatorFromExplosion", function(target, dmginfo)
         if not IsValid(target) or not target:IsPlayer() then return end
 
-        local veh = target:GetVehicle()
-        if not IsValid(veh) then return end
-
-        local parent = veh:GetParent()
-        local drone = IsValid(parent) and parent or veh
+        local drone = GetLVSVehicle(target)
         if not IsValid(drone) then return end
 
-        local isLVSDrone = drone.LVSUAV or drone.IsDrone or drone.IsCrocusKamikaze or drone.IsKVNDrone or (drone:GetClass() and (drone:GetClass():lower():find("crocus") or drone:GetClass():lower():find("kvn") or drone:GetClass():lower():find("drone") or drone:GetClass():lower():find("uav")))
+        local cls = drone:GetClass():lower()
+        local isLVSDrone = drone.LVSUAV or drone.IsDrone or drone.IsCrocusKamikaze or drone.IsKVNDrone or cls:find("crocus") or cls:find("kvn") or cls:find("drone") or cls:find("uav")
 
         if isLVSDrone then
-            local groundPos = target.CrocusGroundPos or target.LVSGroundPos or target:GetPos()
+            local operatorPos = target:GetPos()
             local explosionPos = dmginfo:GetReportedPosition()
             if not explosionPos or explosionPos == vector_origin then
                 explosionPos = dmginfo:GetDamagePosition()
@@ -44,8 +88,8 @@ if SERVER then
                 explosionPos = drone:GetPos()
             end
 
-            -- Если взрыв дальше 200 юнитов от оператора на земле, блокируем урон
-            if groundPos:Distance(explosionPos) > 200 then
+            -- Если оператор находится дальше 150 юнитов от взрыва дрона, блокируем урон полностью
+            if operatorPos:Distance(explosionPos) > 150 then
                 dmginfo:SetDamage(0)
                 dmginfo:ScaleDamage(0)
                 return true
@@ -55,29 +99,6 @@ if SERVER then
 end
 
 if CLIENT then
-    local function GetLVSVehicle(ply)
-        if not IsValid(ply) or not ply:InVehicle() then return nil end
-
-        local pod = ply:GetVehicle()
-        if not IsValid(pod) then return nil end
-
-        local veh = ply.lvsGetVehicle and ply:lvsGetVehicle() or nil
-        if not IsValid(veh) then
-            veh = pod.LVSBase or pod.Base or pod:GetNWEntity("LVSBase") or pod:GetNWEntity("LVS_Entity") or pod:GetParent()
-        end
-
-        if not IsValid(veh) then
-            for _, e in ipairs(ents.FindByClass("lvs_*")) do
-                if e.GetDriverSeat and e:GetDriverSeat() == pod then
-                    veh = e
-                    break
-                end
-            end
-        end
-
-        return IsValid(veh) and veh or pod
-    end
-
     -- 3. Включение управления мышкой для дронов
     hook.Add("Think", "Async_LVS_ForceMouseAimForDrones", function()
         local ply = LocalPlayer()
@@ -93,12 +114,9 @@ if CLIENT then
         end
     end)
 
-    -- 4. Камера от 1 лица на носу дрона с фиксацией 1 к 1 по корпусу
+    -- 4. Камера от 1 лица строго с объектива дрона (без вызова головы игрока)
     hook.Add("CalcView", "Async_LVS_Drone_Master_CalcView", function(ply, pos, angles, fov)
         if not IsValid(ply) or ply:GetViewEntity() ~= ply then return end
-
-        local pod = ply:GetVehicle()
-        if not IsValid(pod) then return end
 
         local veh = GetLVSVehicle(ply)
         if not IsValid(veh) or (veh.GetHP and veh:GetHP() <= 0) or veh._lvsIsDestroyed then return end
@@ -107,10 +125,11 @@ if CLIENT then
         local isDrone = veh.LVSUAV or veh.IsDrone or veh.IsCrocusKamikaze or veh.IsKVNDrone or cls:find("crocus") or cls:find("kvn") or cls:find("drone") or cls:find("uav")
 
         if isDrone then
-            local base = pod.lvsGetWeapon and pod:lvsGetWeapon() or nil
+            local pod = ply:InVehicle() and ply:GetVehicle() or nil
+            local base = IsValid(pod) and (pod.lvsGetWeapon and pod:lvsGetWeapon() or nil) or nil
             local weapon = IsValid(base) and base:GetActiveWeapon() or (veh.GetActiveWeapon and veh:GetActiveWeapon() or nil)
 
-            -- Если у оружия дрона есть своя камера (например, KVN)
+            -- Если у оружия дрона есть своя FPV камера (например, KVN)
             if weapon and weapon.CalcView then
                 local v = weapon.CalcView(veh, ply, pos, angles, fov, pod)
                 if istable(v) and isvector(v.origin) then
@@ -121,7 +140,7 @@ if CLIENT then
                 end
             end
 
-            -- Вынос камеры на передний объектив
+            -- Вынос камеры на передний объектив носа дрона
             local view = {}
             local camAtt = veh:LookupAttachment("camera")
             if camAtt == 0 then camAtt = veh:LookupAttachment("eyes") end

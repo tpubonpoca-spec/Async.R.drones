@@ -22,6 +22,22 @@ local debug_info = {
 local function GetLVSVehicle(ply)
     if not IsValid(ply) then return nil end
 
+    if ply.lvsGetVehicle then
+        local v = ply:lvsGetVehicle()
+        if IsValid(v) then return v end
+    end
+
+    if IsValid(ply.LVS_Vehicle) then return ply.LVS_Vehicle end
+
+    local nwVeh = ply:GetNWEntity("LVS_Vehicle")
+    if IsValid(nwVeh) then return nwVeh end
+
+    local activeDrone = ply:GetNWEntity("KVN_ActiveDrone")
+    if IsValid(activeDrone) then return activeDrone end
+
+    local uav = ply:GetNWEntity("UAV")
+    if IsValid(uav) then return uav end
+
     if ply:InVehicle() then
         local pod = ply:GetVehicle()
         if IsValid(pod) then
@@ -38,9 +54,13 @@ local function GetLVSVehicle(ply)
         end
     end
 
-    if ply.lvsGetVehicle then
-        local v = ply:lvsGetVehicle()
-        if IsValid(v) then return v end
+    for _, e in ipairs(ents.FindByClass("lvs_*")) do
+        if e.GetDriver and e:GetDriver() == ply then
+            return e
+        end
+        if e.GetOperator and e:GetOperator() == ply then
+            return e
+        end
     end
 
     return nil
@@ -63,8 +83,8 @@ hook.Add("CalcView", "Async_LVS_Drone_Debug_CalcView", function(ply, pos, angles
     local cls = debug_info.veh_class:lower()
     debug_info.is_drone = veh.LVSUAV or veh.IsDrone or veh.IsCrocusKamikaze or veh.IsKVNDrone or cls:find("crocus") or cls:find("kvn") or cls:find("drone") or cls:find("uav")
 
-    local groundPos = ply.CrocusGroundPos or ply.LVSGroundPos or ply:GetPos()
-    debug_info.dist_to_operator = math.Round(groundPos:Distance(veh:GetPos()) / 39.37)
+    local operatorPos = ply:GetPos()
+    debug_info.dist_to_operator = math.Round(operatorPos:Distance(veh:GetPos()) / 39.37)
 
     debug_info.cam_origin = pos
     debug_info.cam_angles = angles
