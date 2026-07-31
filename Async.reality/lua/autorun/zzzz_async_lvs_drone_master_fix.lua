@@ -3,6 +3,21 @@
 --]]
 
 if SERVER then
+    -- Заставить сервер всегда передавать сетевые данные дронов клиенту (решает улет камеры за карту и черный экран)
+    hook.Add("OnEntityCreated", "ZZZZ_LVS_ForceTransmitAlwaysForDrones", function(ent)
+        timer.Simple(0, function()
+            if IsValid(ent) then
+                local cls = ent:GetClass():lower()
+                local isDrone = ent.LVSUAV or ent.IsDrone or ent.IsCrocusKamikaze or ent.IsKVNDrone or cls:find("crocus") or cls:find("kvn") or cls:find("drone") or cls:find("uav")
+                if isDrone then
+                    function ent:UpdateTransmitState()
+                        return TRANSMIT_ALWAYS
+                    end
+                end
+            end
+        end)
+    end)
+
     -- Защита оператора от взрыва своего дрона на расстоянии
     hook.Add("EntityTakeDamage", "ZZZZ_LVS_ProtectRemoteOperatorFromExplosion", function(target, dmginfo)
         if not IsValid(target) or not target:IsPlayer() then return end

@@ -59,7 +59,7 @@ hook.Add("EntityRemoved", "KVN_RestorePilotPos", function(ent)
 end)
 
 function ENT:UpdateTransmitState()
-	return TRANSMIT_PVS
+	return TRANSMIT_ALWAYS
 end
 
 function ENT:OnSpawn(PObj)
