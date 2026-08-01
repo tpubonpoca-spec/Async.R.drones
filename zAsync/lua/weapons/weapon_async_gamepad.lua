@@ -2,8 +2,9 @@
     SWEP Пульта Управления Дронами (Async Gamepad)
     Файл: lua/weapons/weapon_async_gamepad.lua
 
-    Портативный пульт управления с экраном смартфона.
-    На экране смартфона отображается ЖИВАЯ трансляция с FPV-камеры подсоединённого дрона (Render Target)!
+    Интерактивный экран смартфона на самом пульте:
+    - Позволяет выбирать дрон (ПКМ) и запускать его прямо с экрана смартфона (ЛКМ)!
+    - После запуска транслирует живой FPV видеопоток с камеры дрона на экран смартфона.
 --]]
 
 if SERVER then
@@ -14,7 +15,7 @@ SWEP.Base = "weapon_base"
 
 SWEP.PrintName = "НСУ Пульт Дронов"
 SWEP.Author = "zAsync"
-SWEP.Instructions = "ЛКМ или F6: Открыть экран выбора дронов.\nПКМ: Переключение тепловизора FLIR.\nR: Проверка статуса связи."
+SWEP.Instructions = "ЛКМ: Спавн/Запуск выбранного дрона с экрана пульта.\nПКМ: Переключение выбранного дрона (KVN-1/2/3) / FLIR.\nR: Проверка статуса связи."
 SWEP.Category = "ZCity Other"
 
 SWEP.Spawnable = true
@@ -30,13 +31,13 @@ if CLIENT then
     SWEP.IconOverride = "entities/async_gamepad.png"
     SWEP.BounceWeaponIcon = false
 
-    -- Консольные переменные для подстройки размеров и расположения в руках
+    -- Консольные переменные настройки размера и расположения
     CreateClientConVar("async_gamepad_scale", "0.04", true, false, "Масштаб модели пульта")
     CreateClientConVar("async_gamepad_pos_x", "4", true, false, "Смещение вперед/назад")
     CreateClientConVar("async_gamepad_pos_y", "3", true, false, "Смещение вправо/влево")
     CreateClientConVar("async_gamepad_pos_z", "-2", true, false, "Смещение вверх/вниз")
     CreateClientConVar("async_gamepad_ang_p", "15", true, false, "Угол тангажа (Pitch)")
-    CreateClientConVar("async_gamepad_ang_y", "0", true, false, "Угол рыскания (Yaw) — антеннами от игрока")
+    CreateClientConVar("async_gamepad_ang_y", "0", true, false, "Угол рыскания (Yaw)")
     CreateClientConVar("async_gamepad_ang_r", "0", true, false, "Угол крена (Roll)")
 end
 
@@ -60,8 +61,22 @@ SWEP.Secondary.DefaultClip = -1
 SWEP.Secondary.Automatic = false
 SWEP.Secondary.Ammo = "none"
 
+-- Список доступных для спавна дронов
+local DRONES = {
+    { class = "lvs_kvn1", name = "KVN-1 (Камикадзе)", color = Color(220, 60, 60) },
+    { class = "lvs_kvn2", name = "KVN-2 (Разведка/FLIR)", color = Color(60, 180, 220) },
+    { class = "lvs_kvn3", name = "KVN-3 (Тяжёлый)", color = Color(220, 180, 40) },
+}
+
+function SWEP:SetupDataTables()
+    self:NetworkVar("Int", 0, "SelectedDroneIndex")
+end
+
 function SWEP:Initialize()
     self:SetHoldType(self.HoldType)
+    if SERVER then
+        self:SetSelectedDroneIndex(1)
+    end
 end
 
 function SWEP:Deploy()
@@ -69,10 +84,26 @@ function SWEP:Deploy()
 end
 
 function SWEP:PrimaryAttack()
-    self:SetNextPrimaryFire(CurTime() + 0.5)
+    self:SetNextPrimaryFire(CurTime() + 0.6)
 
-    if CLIENT then
-        if ASYNC_UI then
+    local owner = self:GetOwner()
+    if not IsValid(owner) then return end
+
+    local activeDrone = owner:GetNWEntity("KVN_ActiveDrone")
+
+    if not IsValid(activeDrone) then
+        -- Если дрона нет — запуск выбранного на экране смартфона дрона!
+        local idx = math.Clamp(self:GetSelectedDroneIndex() or 1, 1, #DRONES)
+        local selectedDrone = DRONES[idx]
+
+        if SERVER then
+            net.Start("Async_SpawnDrone")
+                net.WriteString(selectedDrone.class)
+            net.Send(owner)
+        end
+    else
+        -- Если дрон уже запущен — открытие полноэкранного меню по желанию
+        if CLIENT and ASYNC_UI then
             ASYNC_UI.IsOpen = not ASYNC_UI.IsOpen
             gui.EnableScreenClicker(ASYNC_UI.IsOpen)
         end
@@ -80,12 +111,27 @@ function SWEP:PrimaryAttack()
 end
 
 function SWEP:SecondaryAttack()
-    self:SetNextSecondaryFire(CurTime() + 0.5)
+    self:SetNextSecondaryFire(CurTime() + 0.4)
 
-    if CLIENT then
-        local ply = LocalPlayer()
-        if IsValid(ply) then
-            local veh = ply:GetVehicle()
+    local owner = self:GetOwner()
+    if not IsValid(owner) then return end
+
+    local activeDrone = owner:GetNWEntity("KVN_ActiveDrone")
+
+    if not IsValid(activeDrone) then
+        -- Переключение выбранного дрона прямо на экране пульта (1 -> 2 -> 3 -> 1)
+        if SERVER then
+            local current = self:GetSelectedDroneIndex() or 1
+            local nextIdx = (current % #DRONES) + 1
+            self:SetSelectedDroneIndex(nextIdx)
+        end
+        if CLIENT then
+            surface.PlaySound("buttons/button14.wav")
+        end
+    else
+        -- Переключение тепловизора у летящего дрона
+        if CLIENT then
+            local veh = owner:GetVehicle()
             if IsValid(veh) then
                 local base = veh:GetNWEntity("LVS_Entity")
                 if not IsValid(base) then base = veh:GetParent() end
@@ -108,34 +154,31 @@ function SWEP:Reload()
             if IsValid(activeDrone) then
                 owner:ChatPrint("[zAsync] Статус связи: Дрон активен (" .. activeDrone:GetClass() .. ")")
             else
-                owner:ChatPrint("[zAsync] Статус связи: Дрон не подключён.")
+                owner:ChatPrint("[zAsync] Статус связи: Готов к запуску.")
             end
         end
     end
 end
 
--- Отрисовка 3D2D экрана смартфона с ЖИВОЙ FPV трансляцией (Render Target)
+-- Отрисовка 3D2D экрана смартфона со спавн-меню и FPV-трансляцией
 if CLIENT then
-    -- Инициализация Render Target камеры FPV
     local RT_W, RT_H = 512, 256
-    local drone_rt = GetRenderTarget("AsyncGamepad_FPV_RT", RT_W, RT_H, false)
-    local drone_mat = CreateMaterial("AsyncGamepad_FPV_Mat", "UnlitGeneric", {
-        ["$basetexture"] = "AsyncGamepad_FPV_RT",
+    local drone_rt = GetRenderTarget("AsyncGamepad_FPV_RT2", RT_W, RT_H, false)
+    local drone_mat = CreateMaterial("AsyncGamepad_FPV_Mat2", "UnlitGeneric", {
+        ["$basetexture"] = "AsyncGamepad_FPV_RT2",
         ["$vertexcolor"] = 1,
         ["$ignorez"]     = 0,
     })
 
     local last_cam_render = 0
 
-    -- Функция захвата изображения с камеры дрона
     local function UpdateDroneCameraFeed(drone)
         if not IsValid(drone) then return end
 
         local ct = RealTime()
-        if ct - last_cam_render < 0.033 then return end -- Ограничение ~30 FPS для оптимизации
+        if ct - last_cam_render < 0.033 then return end
         last_cam_render = ct
 
-        -- Позиция объектива дрона
         local camPos = drone:LocalToWorld(Vector(15, 0, 4))
         local camAtt = drone:LookupAttachment("camera")
         if camAtt and camAtt > 0 then
@@ -146,16 +189,9 @@ if CLIENT then
         end
 
         local viewData = {
-            x = 0,
-            y = 0,
-            w = RT_W,
-            h = RT_H,
-            origin = camPos,
-            angles = drone:GetAngles(),
-            fov = 75,
-            drawhud = false,
-            drawviewmodel = false,
-            aspectratio = 2.0,
+            x = 0, y = 0, w = RT_W, h = RT_H,
+            origin = camPos, angles = drone:GetAngles(), fov = 75,
+            drawhud = false, drawviewmodel = false, aspectratio = 2.0,
         }
 
         local oldRT = render.GetRenderTarget()
@@ -165,49 +201,70 @@ if CLIENT then
         render.SetRenderTarget(oldRT)
     end
 
-    local function DrawSmartphoneScreen(pos, ang, scale, drone)
+    local function DrawSmartphoneScreen(pos, ang, scale, drone, swep)
         cam.Start3D2D(pos, ang, scale)
-            -- Задний фон смартфона
+            -- Заднее стекло смартфона
             surface.SetDrawColor(15, 18, 24, 255)
             surface.DrawRect(-150, -90, 300, 180)
 
             if IsValid(drone) then
-                -- Отрисовка живого видеопотока с FPV-камеры дрона
+                -- РЕЖИМ 1: Дрон активен — Трансляция FPV видеопотока
                 UpdateDroneCameraFeed(drone)
 
                 surface.SetDrawColor(255, 255, 255, 255)
                 surface.SetMaterial(drone_mat)
                 surface.DrawTexturedRect(-148, -62, 296, 124)
 
-                -- Сетка прицела FPV на экране
+                -- Сетка прицела FPV
                 surface.SetDrawColor(0, 255, 120, 180)
                 surface.DrawOutlinedRect(-20, -15, 40, 30, 1)
                 surface.DrawLine(-5, 0, 5, 0)
                 surface.DrawLine(0, -5, 0, 5)
             else
-                -- Экран в режиме ожидания подключения
-                draw.SimpleText("READY TO CONNECT", "TargetID", 0, -25, Color(220, 220, 230), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
-                draw.SimpleText("PRESS ATTACK / F6 TO LAUNCH", "TargetIDSmall", 0, 15, Color(0, 200, 255), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+                -- РЕЖИМ 2: Экран спавна и выбора дронов прямо на смартфоне!
+                local selIdx = IsValid(swep) and swep:GetSelectedDroneIndex() or 1
+                selIdx = math.Clamp(selIdx, 1, #DRONES)
+                local currentDroneInfo = DRONES[selIdx]
+
+                -- Заголовок меню на смартфоне
+                surface.SetDrawColor(currentDroneInfo.color.r, currentDroneInfo.color.g, currentDroneInfo.color.b, 60)
+                surface.DrawRect(-140, -60, 280, 115)
+
+                surface.SetDrawColor(currentDroneInfo.color)
+                surface.DrawOutlinedRect(-140, -60, 280, 115, 2)
+
+                draw.SimpleText("ВЫБРАННЫЙ ДРОН:", "TargetIDSmall", 0, -50, Color(180, 190, 210), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+                draw.SimpleText("◄ " .. currentDroneInfo.name .. " ►", "TargetID", 0, -22, Color(255, 255, 255), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+
+                -- Кнопка "ЗАПУСК" на экране смартфона
+                surface.SetDrawColor(40, 160, 80, 255)
+                surface.DrawRect(-90, 5, 180, 32)
+                surface.SetDrawColor(80, 220, 120, 255)
+                surface.DrawOutlinedRect(-90, 5, 180, 32, 1)
+                draw.SimpleText("[ ЛКМ — ЗАПУСТИТЬ ]", "TargetIDSmall", 0, 21, Color(255, 255, 255), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+
+                -- Подсказка переключения
+                draw.SimpleText("ПКМ — Выбрать другой дрон", "TargetIDSmall", 0, 45, Color(140, 145, 160), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
             end
 
-            -- Рамка экрана
+            -- Рамка экрана смартфона
             surface.SetDrawColor(0, 180, 255, 200)
             surface.DrawOutlinedRect(-150, -90, 300, 180, 2)
 
-            -- Верхняя информационная плашка
-            surface.SetDrawColor(25, 30, 40, 220)
+            -- Верхняя полоса статуса
+            surface.SetDrawColor(25, 30, 40, 230)
             surface.DrawRect(-150, -90, 300, 26)
 
-            draw.SimpleText("zAsync FPV FEED", "TargetIDSmall", -140, -85, Color(0, 220, 255), TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+            draw.SimpleText("zAsync SPAWN SYSTEM", "TargetIDSmall", -140, -85, Color(0, 220, 255), TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
             
             local pct = IsValid(drone) and math.Round(drone:GetNWFloat("KVN_BatteryPct", 1) * 100) or 100
             draw.SimpleText("BAT: " .. pct .. "%", "TargetIDSmall", 140, -85, Color(80, 220, 120), TEXT_ALIGN_RIGHT, TEXT_ALIGN_TOP)
 
-            -- Нижний статус бар
-            surface.SetDrawColor(40, 45, 55, 220)
+            -- Нижняя полоса сигнала
+            surface.SetDrawColor(40, 45, 55, 230)
             surface.DrawRect(-150, 64, 300, 26)
             
-            local statusStr = IsValid(drone) and ("LINK: OK | " .. drone:GetClass():upper()) or "SIGNAL: STANDBY | CH: 5.8GHz"
+            local statusStr = IsValid(drone) and ("LINK: ACTIVE | " .. drone:GetClass():upper()) or "SYSTEM: READY FOR LAUNCH"
             draw.SimpleText(statusStr, "TargetIDSmall", 0, 68, Color(200, 200, 210), TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP)
         cam.End3D2D()
     end
@@ -248,15 +305,14 @@ if CLIENT then
         self:SetRenderAngles(ang)
         self:DrawModel()
 
-        -- Поиск подключённого активного дрона у игрока
         local activeDrone = IsValid(owner) and owner:GetNWEntity("KVN_ActiveDrone") or nil
 
-        -- Отрисовка 3D2D экрана смартфона прямо на дисплее модели
+        -- Отрисовка 3D2D спавн-меню и FPV-трансляции прямо на экране смартфона
         local screenPos = pos + ang:Forward() * (0.5 * scale * 25) + ang:Up() * (2.2 * scale * 25)
         local screenAng = Angle(ang.p, ang.y, ang.r)
         screenAng:RotateAroundAxis(screenAng:Up(), 90)
         screenAng:RotateAroundAxis(screenAng:Forward(), 75)
 
-        DrawSmartphoneScreen(screenPos, screenAng, 0.015 * (scale / 0.04), activeDrone)
+        DrawSmartphoneScreen(screenPos, screenAng, 0.015 * (scale / 0.04), activeDrone, self)
     end
 end
