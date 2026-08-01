@@ -100,12 +100,6 @@ if SERVER then
 end
 
 if CLIENT then
-    -- Принудительное восстановление биндов стрелочек при запуске
-    timer.Simple(2, function()
-        LocalPlayer():ConCommand("bind DOWNARROW +lookdown")
-        LocalPlayer():ConCommand("bind RIGHTARROW +right")
-    end)
-
     -- 3. Включение управления мышкой для дронов
     hook.Add("Think", "Async_LVS_ForceMouseAimForDrones", function()
         local ply = LocalPlayer()
