@@ -83,21 +83,8 @@ function ENT:OnSpawn(PObj)
 		self:EmitSound("physics/metal/metal_box_break2.wav")
 	end
 
-	self.UAVControl = ents.Create("sw_uav_control")
-	if not IsValid(self.UAVControl) then return end
-	self.UAVControl:SetPos(self:LocalToWorld(Vector(0,-25,0)))
-	self.UAVControl:SetAngles(self:GetAngles())
-	self.UAVControl:Spawn()
-	self.UAVControl:Activate()
-	self.UAVControl:SetNWEntity("UAV", self)
-	self:SetNWEntity("UAVControl", self.UAVControl)
-	self:DeleteOnRemove(self.UAVControl)
-
-	local Connect = constraint.Rope(self, self.UAVControl, 0, 0, vOut, Vector(0,0,5), 30000, 0, 0.5, 0.1, "cable/cable2")
-	if IsValid(Connect) then
-		Connect:SetColor(Color(150, 150, 150, 255))
-	end
-	self:SetNWEntity("Connect", Connect)
+	-- Кабель и привязка к оператору создаются через Async Gamepad (sv_async_gamepad_spawner.lua).
+	-- При спавне через Q-меню дрон работает автономно без внешнего пульта.
 
 	self:SetNWFloat("KVN_BatteryPct", 1)
 	self:SetNWFloat("KVN_mAh", 0)
@@ -112,10 +99,6 @@ function ENT:OnTick()
 	if p.z < -32000 or p.z > 32000 or math.abs(p.x) > 32000 or math.abs(p.y) > 32000 then
 		self:Remove()
 		return
-	end
-
-	if self:GetEngineActive() and not IsValid(self:GetNWEntity("Connect")) then
-		self:SetEngineActive(false)
 	end
 end
 
