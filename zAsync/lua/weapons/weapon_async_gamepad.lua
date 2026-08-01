@@ -3,7 +3,7 @@
     Файл: lua/weapons/weapon_async_gamepad.lua
 
     Портативный пульт управления с экраном смартфона.
-    Позволяет вызывать экран выбора и запуска дронов KVN (ЛКМ / F6).
+    Позволяет настраивать размер, позицию в руках и 3D2D дисплей смартфона.
 --]]
 
 if SERVER then
@@ -14,14 +14,14 @@ SWEP.Base = "weapon_base"
 
 SWEP.PrintName = "НСУ Пульт Дронов"
 SWEP.Author = "zAsync"
-SWEP.Instructions = "ЛКМ или F6: Открыть экран выбора и запуска дронов.\nПКМ: Переключение тепловизора FLIR.\nR: Проверка статуса связи с дроном."
+SWEP.Instructions = "ЛКМ или F6: Открыть экран выбора дронов.\nПКМ: Переключение тепловизора FLIR.\nR: Проверка статуса связи."
 SWEP.Category = "ZCity Other"
 
 SWEP.Spawnable = true
 SWEP.AdminSpawnable = true
 SWEP.AdminOnly = false
 
-SWEP.ViewModel = ""
+SWEP.ViewModel = "models/weapons/w_async_gamepad.mdl"
 SWEP.WorldModel = "models/weapons/w_async_gamepad.mdl"
 
 if CLIENT then
@@ -29,6 +29,15 @@ if CLIENT then
     SWEP.WepSelectIcon2 = Material("entities/async_gamepad.png")
     SWEP.IconOverride = "entities/async_gamepad.png"
     SWEP.BounceWeaponIcon = false
+
+    -- Консольные переменные для быстрой подстройки размеров и положения из игры
+    CreateClientConVar("async_gamepad_scale", "0.04", true, false, "Масштаб модели пульта (по умолчанию 0.04)")
+    CreateClientConVar("async_gamepad_pos_x", "5", true, false, "Смещение вперед/назад")
+    CreateClientConVar("async_gamepad_pos_y", "4", true, false, "Смещение вправо/влево")
+    CreateClientConVar("async_gamepad_pos_z", "-3", true, false, "Смещение вверх/вниз")
+    CreateClientConVar("async_gamepad_ang_p", "10", true, false, "Угол тангажа (Pitch)")
+    CreateClientConVar("async_gamepad_ang_y", "180", true, false, "Угол рыскания (Yaw)")
+    CreateClientConVar("async_gamepad_ang_r", "0", true, false, "Угол крена (Roll)")
 end
 
 SWEP.Weight = 0
@@ -102,5 +111,93 @@ function SWEP:Reload()
                 owner:ChatPrint("[zAsync] Статус связи: Дрон не подключён.")
             end
         end
+    end
+end
+
+-- Отрисовка 3D2D экрана смартфона и модели с правильным масштабом
+if CLIENT then
+    local function DrawSmartphoneScreen(pos, ang, scale)
+        cam.Start3D2D(pos, ang, scale)
+            -- Задний фон экрана смартфона
+            surface.SetDrawColor(15, 18, 24, 255)
+            surface.DrawRect(-150, -90, 300, 180)
+
+            -- Рамка экрана
+            surface.SetDrawColor(0, 180, 255, 200)
+            surface.DrawOutlinedRect(-150, -90, 300, 180, 2)
+
+            -- Верхний статус бар
+            surface.SetDrawColor(25, 30, 40, 255)
+            surface.DrawRect(-150, -90, 300, 26)
+
+            draw.SimpleText("zAsync UAV System v1.4", "TargetIDSmall", -140, -85, Color(0, 220, 255), TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+            draw.SimpleText("BAT: 98%", "TargetIDSmall", 140, -85, Color(80, 220, 120), TEXT_ALIGN_RIGHT, TEXT_ALIGN_TOP)
+
+            -- Центральное окно видеопотока / меню
+            local ply = LocalPlayer()
+            local activeDrone = IsValid(ply) and ply:GetNWEntity("KVN_ActiveDrone") or nil
+
+            if IsValid(activeDrone) then
+                draw.SimpleText("[ LINK ACTIVE ]", "TargetID", 0, -30, Color(80, 220, 120), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+                draw.SimpleText(activeDrone:GetClass():upper(), "TargetID", 0, 5, Color(255, 255, 255), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+                draw.SimpleText("FPV FEED ONLINE", "TargetIDSmall", 0, 35, Color(180, 180, 190), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+            else
+                draw.SimpleText("READY TO CONNECT", "TargetID", 0, -25, Color(220, 220, 230), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+                draw.SimpleText("PRESS ATTACK / F6 TO LAUNCH", "TargetIDSmall", 0, 15, Color(0, 200, 255), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+            end
+
+            -- Нижняя полоса сигнала
+            surface.SetDrawColor(40, 45, 55, 255)
+            surface.DrawRect(-150, 64, 300, 26)
+            draw.SimpleText("SIGNAL: 100% | CH: 5.8GHz", "TargetIDSmall", 0, 68, Color(150, 150, 160), TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP)
+        cam.End3D2D()
+    end
+
+    function SWEP:DrawWorldModel()
+        local owner = self:GetOwner()
+        
+        -- Считываем текущие настройки из ConVar
+        local scale = GetConVar("async_gamepad_scale"):GetFloat()
+        local offX = GetConVar("async_gamepad_pos_x"):GetFloat()
+        local offY = GetConVar("async_gamepad_pos_y"):GetFloat()
+        local offZ = GetConVar("async_gamepad_pos_z"):GetFloat()
+        local angP = GetConVar("async_gamepad_ang_p"):GetFloat()
+        local angY = GetConVar("async_gamepad_ang_y"):GetFloat()
+        local angR = GetConVar("async_gamepad_ang_r"):GetFloat()
+
+        local pos, ang
+
+        if IsValid(owner) then
+            local boneHand = owner:LookupBone("ValveBiped.Bip01_R_Hand")
+            if boneHand then
+                pos, ang = owner:GetBonePosition(boneHand)
+            else
+                pos = owner:GetPos()
+                ang = owner:GetAngles()
+            end
+
+            -- Применяем относительное смещение к руке игрока
+            pos = pos + ang:Forward() * offX + ang:Right() * offY + ang:Up() * offZ
+            ang:RotateAroundAxis(ang:Up(), angY)
+            ang:RotateAroundAxis(ang:Right(), angP)
+            ang:RotateAroundAxis(ang:Forward(), angR)
+        else
+            pos = self:GetPos()
+            ang = self:GetAngles()
+        end
+
+        -- Отрисовка масштабированной 3D-модели
+        self:SetModelScale(scale, 0)
+        self:SetRenderOrigin(pos)
+        self:SetRenderAngles(ang)
+        self:DrawModel()
+
+        -- Отрисовка 3D2D экрана смартфона прямо на дисплее модели
+        local screenPos = pos + ang:Forward() * (0.5 * scale * 25) + ang:Up() * (2.2 * scale * 25)
+        local screenAng = Angle(ang.p, ang.y, ang.r)
+        screenAng:RotateAroundAxis(screenAng:Up(), 90)
+        screenAng:RotateAroundAxis(screenAng:Forward(), 75)
+
+        DrawSmartphoneScreen(screenPos, screenAng, 0.015 * (scale / 0.04))
     end
 end

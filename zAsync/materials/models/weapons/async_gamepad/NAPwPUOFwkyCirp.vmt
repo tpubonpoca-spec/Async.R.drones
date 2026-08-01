@@ -1,6 +1,6 @@
  "VertexLitGeneric"
 {
-	"$basetexture" "models/weapons/async_gamepad/front_body"
+	"$basetexture" "models/weapons/async_gamepad/NAPwPUOFwkyCirp"
 	"$surfaceprop" "metal"
 	"$phong" "1"
 	"$phongexponent" "20"
