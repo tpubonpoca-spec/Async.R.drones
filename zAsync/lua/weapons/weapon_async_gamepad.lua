@@ -2,8 +2,7 @@
     SWEP Пульта Управления Дронами (Async Gamepad)
     Файл: lua/weapons/weapon_async_gamepad.lua
 
-    Настроен идеальный масштаб (0.50), углы (-25, -180, -180) и
-    точная привязка 3D2D экрана прямо на стекло смартфона геймпада!
+    Увеличен размер экрана смартфона и выровнен угол прямого прилегания к стеклу.
 --]]
 
 if SERVER then
@@ -30,7 +29,7 @@ if CLIENT then
     SWEP.IconOverride = "entities/async_gamepad.png"
     SWEP.BounceWeaponIcon = false
 
-    -- Настройки положения модели в руках по умолчанию на основе пользовательских значений
+    -- Настройки положения модели в руках по умолчанию
     CreateClientConVar("async_gamepad_scale", "0.50", true, false, "Масштаб модели пульта")
     CreateClientConVar("async_gamepad_pos_x", "20", true, false, "Смещение вперед/назад")
     CreateClientConVar("async_gamepad_pos_y", "3", true, false, "Смещение вправо/влево")
@@ -39,11 +38,11 @@ if CLIENT then
     CreateClientConVar("async_gamepad_ang_y", "-180", true, false, "Угол рыскания (Yaw)")
     CreateClientConVar("async_gamepad_ang_r", "-180", true, false, "Угол крена (Roll)")
 
-    -- Точная подстройка экрана смартфона на модели
+    -- Точная подстройка экрана смартфона на модели (увеличенный размер и ровный угол)
     CreateClientConVar("async_gamepad_screen_x", "0", true, false, "Смещение экрана по X")
     CreateClientConVar("async_gamepad_screen_y", "1.2", true, false, "Смещение экрана по Y")
-    CreateClientConVar("async_gamepad_screen_z", "5.8", true, false, "Смещение экрана по Z")
-    CreateClientConVar("async_gamepad_screen_scale", "0.018", true, false, "Масштаб 3D2D экрана")
+    CreateClientConVar("async_gamepad_screen_z", "5.6", true, false, "Смещение экрана по Z")
+    CreateClientConVar("async_gamepad_screen_scale", "0.026", true, false, "Масштаб 3D2D экрана")
 end
 
 SWEP.Weight = 0
@@ -162,9 +161,9 @@ end
 
 if CLIENT then
     local RT_W, RT_H = 512, 256
-    local drone_rt = GetRenderTarget("AsyncGamepad_FPV_RT3", RT_W, RT_H, false)
-    local drone_mat = CreateMaterial("AsyncGamepad_FPV_Mat3", "UnlitGeneric", {
-        ["$basetexture"] = "AsyncGamepad_FPV_RT3",
+    local drone_rt = GetRenderTarget("AsyncGamepad_FPV_RT4", RT_W, RT_H, false)
+    local drone_mat = CreateMaterial("AsyncGamepad_FPV_Mat4", "UnlitGeneric", {
+        ["$basetexture"] = "AsyncGamepad_FPV_RT4",
         ["$vertexcolor"] = 1,
         ["$ignorez"]     = 0,
     })
@@ -305,11 +304,11 @@ if CLIENT then
 
         local activeDrone = IsValid(owner) and owner:GetNWEntity("KVN_ActiveDrone") or nil
 
-        -- Вычисление позиционирования 3D2D экрана строго на дисплее смартфона
+        -- Отрисовка 3D2D экрана смартфона ровно по плоскости стекла
         local screenPos = pos + ang:Forward() * scrX + ang:Right() * scrY + ang:Up() * scrZ
         local screenAng = Angle(ang.p, ang.y, ang.r)
         screenAng:RotateAroundAxis(screenAng:Up(), 90)
-        screenAng:RotateAroundAxis(screenAng:Forward(), 75)
+        screenAng:RotateAroundAxis(screenAng:Forward(), 90)
 
         DrawSmartphoneScreen(screenPos, screenAng, scrScale, activeDrone, self)
     end
