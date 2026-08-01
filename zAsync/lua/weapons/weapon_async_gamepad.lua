@@ -30,13 +30,13 @@ if CLIENT then
     SWEP.IconOverride = "entities/async_gamepad.png"
     SWEP.BounceWeaponIcon = false
 
-    -- Консольные переменные для быстрой подстройки размеров и положения из игры
-    CreateClientConVar("async_gamepad_scale", "0.04", true, false, "Масштаб модели пульта (по умолчанию 0.04)")
-    CreateClientConVar("async_gamepad_pos_x", "5", true, false, "Смещение вперед/назад")
-    CreateClientConVar("async_gamepad_pos_y", "4", true, false, "Смещение вправо/влево")
-    CreateClientConVar("async_gamepad_pos_z", "-3", true, false, "Смещение вверх/вниз")
-    CreateClientConVar("async_gamepad_ang_p", "10", true, false, "Угол тангажа (Pitch)")
-    CreateClientConVar("async_gamepad_ang_y", "180", true, false, "Угол рыскания (Yaw)")
+    -- Консольные переменные для подстройки размеров и разворота из игры
+    CreateClientConVar("async_gamepad_scale", "0.04", true, false, "Масштаб модели пульта")
+    CreateClientConVar("async_gamepad_pos_x", "4", true, false, "Смещение вперед/назад")
+    CreateClientConVar("async_gamepad_pos_y", "3", true, false, "Смещение вправо/влево")
+    CreateClientConVar("async_gamepad_pos_z", "-2", true, false, "Смещение вверх/вниз")
+    CreateClientConVar("async_gamepad_ang_p", "15", true, false, "Угол тангажа (Pitch)")
+    CreateClientConVar("async_gamepad_ang_y", "0", true, false, "Угол рыскания (Yaw) — развёрнут на 180° к игроку")
     CreateClientConVar("async_gamepad_ang_r", "0", true, false, "Угол крена (Roll)")
 end
 
@@ -114,7 +114,7 @@ function SWEP:Reload()
     end
 end
 
--- Отрисовка 3D2D экрана смартфона и модели с правильным масштабом
+-- Отрисовка 3D2D экрана смартфона и модели с разворотом на 180° к игроку
 if CLIENT then
     local function DrawSmartphoneScreen(pos, ang, scale)
         cam.Start3D2D(pos, ang, scale)
@@ -133,7 +133,7 @@ if CLIENT then
             draw.SimpleText("zAsync UAV System v1.4", "TargetIDSmall", -140, -85, Color(0, 220, 255), TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
             draw.SimpleText("BAT: 98%", "TargetIDSmall", 140, -85, Color(80, 220, 120), TEXT_ALIGN_RIGHT, TEXT_ALIGN_TOP)
 
-            -- Центральное окно видеопотока / меню
+            -- Центральное окно
             local ply = LocalPlayer()
             local activeDrone = IsValid(ply) and ply:GetNWEntity("KVN_ActiveDrone") or nil
 
@@ -156,7 +156,6 @@ if CLIENT then
     function SWEP:DrawWorldModel()
         local owner = self:GetOwner()
         
-        -- Считываем текущие настройки из ConVar
         local scale = GetConVar("async_gamepad_scale"):GetFloat()
         local offX = GetConVar("async_gamepad_pos_x"):GetFloat()
         local offY = GetConVar("async_gamepad_pos_y"):GetFloat()
@@ -176,7 +175,6 @@ if CLIENT then
                 ang = owner:GetAngles()
             end
 
-            -- Применяем относительное смещение к руке игрока
             pos = pos + ang:Forward() * offX + ang:Right() * offY + ang:Up() * offZ
             ang:RotateAroundAxis(ang:Up(), angY)
             ang:RotateAroundAxis(ang:Right(), angP)
@@ -186,7 +184,6 @@ if CLIENT then
             ang = self:GetAngles()
         end
 
-        -- Отрисовка масштабированной 3D-модели
         self:SetModelScale(scale, 0)
         self:SetRenderOrigin(pos)
         self:SetRenderAngles(ang)
