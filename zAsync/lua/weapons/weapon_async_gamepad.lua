@@ -46,8 +46,8 @@ SWEP.handAng = Angle(0, 0, 0)
 SWEP.UsePistolHold = false
 
 -- Позиция модели относительно кости правой руки персонажа
-SWEP.offsetVec = Vector(5, -7, -1)
-SWEP.offsetAng = Angle(0, 90, 195)
+SWEP.offsetVec = Vector(0, 0, 0)
+SWEP.offsetAng = Angle(0, 0, 0)
 
 SWEP.HeadPosOffset = Vector(15, 1.7, -5)
 SWEP.HeadAngOffset = Angle(-90, 0, -90)
@@ -62,12 +62,12 @@ SWEP.visualweight = 1.2
 
 -- ConVars для регулировки положения в руках прямо из консоли
 if CLIENT then
-    local cv_ox = CreateClientConVar("async_gp_ox", "5", true, false, "Offset Forward")
-    local cv_oy = CreateClientConVar("async_gp_oy", "-7", true, false, "Offset Right")
-    local cv_oz = CreateClientConVar("async_gp_oz", "-1", true, false, "Offset Up")
+    local cv_ox = CreateClientConVar("async_gp_ox", "0", true, false, "Offset Forward")
+    local cv_oy = CreateClientConVar("async_gp_oy", "0", true, false, "Offset Right")
+    local cv_oz = CreateClientConVar("async_gp_oz", "0", true, false, "Offset Up")
     local cv_ap = CreateClientConVar("async_gp_ap", "0", true, false, "Angle Pitch")
-    local cv_ay = CreateClientConVar("async_gp_ay", "90", true, false, "Angle Yaw")
-    local cv_ar = CreateClientConVar("async_gp_ar", "195", true, false, "Angle Roll")
+    local cv_ay = CreateClientConVar("async_gp_ay", "0", true, false, "Angle Yaw")
+    local cv_ar = CreateClientConVar("async_gp_ar", "0", true, false, "Angle Roll")
 
     function SWEP:Think()
         if self:GetHoldType() ~= self.HoldType then
