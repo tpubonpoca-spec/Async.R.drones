@@ -1,9 +1,8 @@
 --[[
     Серверный спавнер дронов (zAsync + Crocus + Mavic 2 + KVN)
-    - Стартовый звук BLHeli останавливается ровно на 5.4 секунды, когда включаются родные пропеллеры.
-    - Никаких фоновых шумов, наложений или паразитных гитарных/электрических тонов во время полёта.
-    - Родной звук полёта дронов (kvn_idle.ogg / crocus_idle.ogg) работает чистейше из исходников.
-    - Звук полёта дрона в 3D-мире НЕ выключается при выходе на E, пока дрон не уничтожен.
+    - Полный 5.4-секундный стартовый звук BLHeli (vkluchenie.mp3 + esc_startup.mp3).
+    - Автоматический полноценный старт моторов с 100% тягой ровно по истечении 5.4с.
+    - Вшитые сущности lvs_crocus и lvs_mavic2 со всеми исходными фалами.
 --]]
 
 if not SERVER then return end
@@ -178,28 +177,23 @@ net.Receive("Async_SpawnDrone", function(len, ply)
         end
     end)
 
-    -- ЧИСТЫЙ СТАРТОВЫЙ ЗВУК ИЗДАЕТСЯ ТОЛЬКО ВО ВРЕМЯ КД И СТОПИТСЯ ПЕРЕД СТАРТОМ МОТОРОВ
-    drone:EmitSound("zasync/vkluchenie.mp3", 70, 100)
+    -- 5.4 СЕКУНДНЫЙ СТАРТОВЫЙ ЗВУК BLHeli ESC (ВОСПРОИЗВОДИТСЯ ПОЛНОСТЬЮ ОТ ДРОНА)
+    drone:EmitSound("zasync/vkluchenie.mp3", 75, 100)
 
     timer.Simple(0.3, function()
         if IsValid(drone) then
-            drone:EmitSound("zasync/esc_startup.mp3", 70, 100)
+            drone:EmitSound("zasync/esc_startup.mp3", 75, 100)
         end
     end)
 
-    -- РОВНО ЧЕРЕЗ 5.4 СЕКУНДЫ ОСТАНАВЛИВАЕТСЯ ЗВУК СТАРТЕРА И ВКЛЮЧАЕТСЯ ЧИСТЫЙ ЗВУК ПОЛЁТА ВИНТОВ
+    -- АВТОМАТИЧЕСКИЙ ЗАПУСК ДВИГАТЕЛЕЙ ПОСЛЕ ЗАВЕРШЕНИЯ КД 5.4 СЕКУНДЫ
     timer.Simple(5.4, function()
-        if IsValid(drone) then
-            drone:StopSound("zasync/vkluchenie.mp3")
-            drone:StopSound("zasync/esc_startup.mp3")
-
-            if IsValid(ply) then
-                if drone.SetEngineUser then drone:SetEngineUser(ply) end
-                if drone.SetEngineActive then drone:SetEngineActive(true) end
-                if drone.StartEngine then drone:StartEngine() end
-                if drone.SetThrottle then drone:SetThrottle(1) end
-                if drone.SetMaxThrottle then drone:SetMaxThrottle(1) end
-            end
+        if IsValid(drone) and IsValid(ply) then
+            if drone.SetEngineUser then drone:SetEngineUser(ply) end
+            if drone.SetEngineActive then drone:SetEngineActive(true) end
+            if drone.StartEngine then drone:StartEngine() end
+            if drone.SetThrottle then drone:SetThrottle(1) end
+            if drone.SetMaxThrottle then drone:SetMaxThrottle(1) end
         end
     end)
 
