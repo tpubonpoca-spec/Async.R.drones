@@ -210,6 +210,9 @@ if CLIENT then
     local COLOR_TEXT_MUTED = Color(140, 145, 160)
     local COLOR_TEXT_LABEL = Color(180, 190, 210)
     local COLOR_TEXT_STATUS = Color(200, 200, 210)
+    local COLOR_BTN_BG = Color(40, 160, 80, 255)
+    local COLOR_BTN_BORDER = Color(80, 220, 120, 255)
+    local CAM_OFFSET_DEFAULT = Vector(15, 0, 4)
 
     local RT_W, RT_H = 512, 256
     local drone_rt = GetRenderTarget("AsyncGamepad_FPV_RT4", RT_W, RT_H, false)
@@ -228,7 +231,7 @@ if CLIENT then
         if ct - last_cam_render < 0.033 then return end
         last_cam_render = ct
 
-        local camPos = drone:LocalToWorld(Vector(15, 0, 4))
+        local camPos = drone:LocalToWorld(CAM_OFFSET_DEFAULT)
         local camAtt = drone:LookupAttachment("camera")
         if camAtt and camAtt > 0 then
             local att = drone:GetAttachment(camAtt)
@@ -280,9 +283,9 @@ if CLIENT then
                 draw.SimpleText("ВЫБРАННЫЙ ДРОН:", "TargetIDSmall", 0, -48, COLOR_TEXT_LABEL, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
                 draw.SimpleText("◄ " .. currentDroneInfo.name .. " ►", "TargetID", 0, -22, COLOR_WHITE, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 
-                surface.SetDrawColor(40, 160, 80, 255)
+                surface.SetDrawColor(COLOR_BTN_BG)
                 surface.DrawRect(-90, 5, 180, 32)
-                surface.SetDrawColor(80, 220, 120, 255)
+                surface.SetDrawColor(COLOR_BTN_BORDER)
                 surface.DrawOutlinedRect(-90, 5, 180, 32, 1)
                 draw.SimpleText("[ ЛКМ — ЗАПУСТИТЬ ]", "TargetIDSmall", 0, 21, COLOR_WHITE, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 
