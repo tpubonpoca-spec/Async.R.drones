@@ -1,18 +1,17 @@
 --[[
-    SWEP Пульта Управления Дронами (Async Gamepad)
+    SWEP Пульта Управления Дронами (Async Gamepad - Photo 1 Viewmodel)
     Файл: lua/weapons/weapon_async_gamepad.lua
 
-    Оптимизирован согласно стандартам gmod-dev / AuraKit:
-    - Кэширование Vector, Angle, Color вне циклов отрисовки
-    - Взаимодействие с TPIK1 базой Z-City
-    - Поддержка FPV видеопотока и 3D2D экрана
+    Отображает точно такой же 1st-person вид как на Фото 1 из Blender:
+    - Модель рук, рукава, геймпад Xbox, смартфон и антенны из BESTheldinarms.blend
+    - Экран смартфона 3D2D вырисовывается поверх дисплея
 --]]
 
 if SERVER then
     AddCSLuaFile()
 end
 
-SWEP.Base = "weapon_tpik1_base"
+SWEP.Base = "weapon_base"
 
 SWEP.PrintName = "НСУ Пульт Дронов"
 SWEP.Author = "zAsync"
@@ -25,61 +24,8 @@ SWEP.AdminOnly = false
 
 SWEP.ViewModel = "models/weapons/v_async_gamepad.mdl"
 SWEP.WorldModel = "models/weapons/w_async_gamepad.mdl"
+SWEP.UseHands = false
 SWEP.HoldType = "slam"
-
--- TPIK1 привязка к костям рук
-SWEP.setrhik = true
-SWEP.setlhik = true
-
-SWEP.LHPos = Vector(0, -6.6, 0)
-SWEP.LHAng = Angle(0, 0, 180)
-
-SWEP.RHPosOffset = Vector(0, 0, -7.6)
-SWEP.RHAngOffset = Angle(0, 15, -90)
-
-SWEP.LHPosOffset = Vector(0, 0, -0.4)
-SWEP.LHAngOffset = Angle(5, 0, 15)
-
-SWEP.handPos = Vector(0, 0, 0)
-SWEP.handAng = Angle(0, 0, 0)
-
-SWEP.UsePistolHold = false
-
--- Позиция модели относительно правой руки
-SWEP.offsetVec = Vector(5, -7, -1)
-SWEP.offsetAng = Angle(0, 90, 195)
-
-SWEP.HeadPosOffset = Vector(15, 1.7, -5)
-SWEP.HeadAngOffset = Angle(-90, 0, -90)
-
-SWEP.BaseBone = "ValveBiped.Bip01_Head1"
-
-SWEP.HoldLH = "normal"
-SWEP.HoldRH = "normal"
-
-SWEP.WorkWithFake = true
-SWEP.visualweight = 1.2
-
--- Кэшированные ConVar ссылки для gmod-dev производительности
-if CLIENT then
-    local cv_ox = CreateClientConVar("async_gp_ox", "5", true, false, "Offset Forward")
-    local cv_oy = CreateClientConVar("async_gp_oy", "-7", true, false, "Offset Right")
-    local cv_oz = CreateClientConVar("async_gp_oz", "-1", true, false, "Offset Up")
-    local cv_ap = CreateClientConVar("async_gp_ap", "0", true, false, "Angle Pitch")
-    local cv_ay = CreateClientConVar("async_gp_ay", "90", true, false, "Angle Yaw")
-    local cv_ar = CreateClientConVar("async_gp_ar", "195", true, false, "Angle Roll")
-
-    function SWEP:Think()
-        if self:GetHoldType() ~= self.HoldType then
-            self:SetHoldType(self.HoldType)
-        end
-
-        self.offsetVec = Vector(cv_ox:GetFloat(), cv_oy:GetFloat(), cv_oz:GetFloat())
-        self.offsetAng = Angle(cv_ap:GetFloat(), cv_ay:GetFloat(), cv_ar:GetFloat())
-
-        self:AddThink()
-    end
-end
 
 SWEP.Weight = 0
 SWEP.AutoSwitchTo = false
@@ -194,9 +140,9 @@ function SWEP:Reload()
     end
 end
 
--- Кэшированные цвета и векторы для 3D2D вырисовывания (gmod-dev 최적화)
-SWEP.ScreenPosOffset = Vector(3.4, -2.22, 3.57)
-SWEP.ScreenAngleOffset = Angle(-5, -18.5, 91)
+-- Положение 3D2D экрана ровно на дисплее смартфона
+SWEP.ScreenPosOffset = Vector(0, 3.33, 58.35)
+SWEP.ScreenAngleOffset = Angle(0, 0, 90)
 SWEP.ScreenScale = 0.025
 
 if CLIENT then
@@ -316,36 +262,9 @@ if CLIENT then
         if not IsValid(owner) then return end
 
         local activeDrone = owner:GetNWEntity("KVN_ActiveDrone")
-
-        local boneid = vm:LookupBone("ValveBiped.Bip01_R_Hand")
         local pos, ang = vm:GetPos(), vm:GetAngles()
-        if boneid then
-            local matrix = vm:GetBoneMatrix(boneid)
-            if matrix then
-                pos = matrix:GetTranslation()
-                ang = matrix:GetAngles()
-            end
-        end
 
         local screenPos, screenAng = LocalToWorld(self.ScreenPosOffset, self.ScreenAngleOffset, pos, ang)
-        DrawSmartphoneScreen(screenPos, screenAng, self.ScreenScale, activeDrone, self)
-    end
-
-    function SWEP:AddDrawModel(WorldModel)
-        if not IsValid(WorldModel) then return end
-
-        local owner = self:GetOwner()
-        if not IsValid(owner) then return end
-
-        local activeDrone = owner:GetNWEntity("KVN_ActiveDrone")
-
-        local boneid = owner:LookupBone("ValveBiped.Bip01_R_Hand")
-        if not boneid then return end
-
-        local matrix = owner:GetBoneMatrix(boneid)
-        if not matrix then return end
-
-        local screenPos, screenAng = LocalToWorld(self.ScreenPosOffset, self.ScreenAngleOffset, matrix:GetTranslation(), matrix:GetAngles())
         DrawSmartphoneScreen(screenPos, screenAng, self.ScreenScale, activeDrone, self)
     end
 end
