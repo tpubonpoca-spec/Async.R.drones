@@ -1,6 +1,6 @@
 "VertexLitGeneric"
 {
 	"$basetexture" "models/weapons/async_gamepad/Material"
-	"$surfaceprop" "flesh"
+	"$surfaceprop" "plastic"
 	"$model" "1"
 }

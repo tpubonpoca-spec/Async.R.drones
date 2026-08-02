@@ -21,7 +21,7 @@ SWEP.Spawnable = true
 SWEP.AdminSpawnable = true
 SWEP.AdminOnly = false
 
-SWEP.ViewModel = ""
+SWEP.ViewModel = "models/weapons/v_async_gamepad.mdl"
 SWEP.WorldModel = "models/weapons/w_async_gamepad.mdl"
 SWEP.HoldType = "slam"
 
@@ -315,6 +315,29 @@ if CLIENT then
             local statusStr = IsValid(drone) and ("LINK: ACTIVE | " .. drone:GetClass():upper()) or "SYSTEM: READY FOR LAUNCH"
             draw.SimpleText(statusStr, "TargetIDSmall", 0, 68, Color(200, 200, 210), TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP)
         cam.End3D2D()
+    end
+
+    function SWEP:ViewModelDrawn(vm)
+        if not IsValid(vm) then return end
+
+        local owner = self:GetOwner()
+        if not IsValid(owner) then return end
+
+        local activeDrone = owner:GetNWEntity("KVN_ActiveDrone")
+
+        local boneid = vm:LookupBone("ValveBiped.Bip01_R_Hand")
+        local pos, ang = vm:GetPos(), vm:GetAngles()
+        if boneid then
+            local matrix = vm:GetBoneMatrix(boneid)
+            if matrix then
+                pos = matrix:GetTranslation()
+                ang = matrix:GetAngles()
+            end
+        end
+
+        local screenPos, screenAng = LocalToWorld(self.ScreenPosOffset, self.ScreenAngleOffset, pos, ang)
+
+        DrawSmartphoneScreen(screenPos, screenAng, self.ScreenScale, activeDrone, self)
     end
 
     -- Отрисовка 3D2D экрана через DrawWorldModel2 как walkie-talkie и tablet

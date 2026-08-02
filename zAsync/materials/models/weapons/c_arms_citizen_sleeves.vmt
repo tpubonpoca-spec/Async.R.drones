@@ -1,6 +1,6 @@
 "VertexLitGeneric"
 {
 	"$basetexture" "models/weapons/async_gamepad/c_arms_citizen_sleeves"
-	"$surfaceprop" "flesh"
+	"$surfaceprop" "plastic"
 	"$model" "1"
 }

@@ -1,9 +1,6 @@
- "VertexLitGeneric"
+"VertexLitGeneric"
 {
-	"$basetexture" "models/weapons/async_gamepad/Material.004"
-	"$surfaceprop" "metal"
-	"$phong" "1"
-	"$phongexponent" "20"
-	"$phongboost" "1.0"
-	"$phongfresnelranges" "[0.2 0.5 1]"
+	"$basetexture" "models/weapons/async_gamepad/material.004"
+	"$surfaceprop" "plastic"
+	"$model" "1"
 }
