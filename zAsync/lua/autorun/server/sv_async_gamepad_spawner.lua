@@ -1,10 +1,8 @@
 --[[
-    Серверный спавнер дронов zAsync v2.0.0 (КВН + Crocus + Mavic 2)
-    - Базирован на версии v2.0.0-pre-unstable (commit f5ccdf9).
-    - 100% защита оператора на земле от детонации собственного дрона вдали.
-    - Автоматический имитированный старт моторов с 100% тягой через 5.4с.
-    - Запрет ручного пуска двигателя на R (клиент + сервер).
-    - Полный 5.4с стартовый звук BLHeli ESC (vkluchenie.mp3 + esc_startup.mp3).
+    Серверный спавнер дронов (zAsync + Crocus + Mavic 2 + KVN)
+    - 100% ГАРАНТИРОВАННАЯ ЗАЩИТА ОПЕРАТОРА НА ЗЕМЛЕ ОТ УРОНА ДЕТОНАЦИИ ДРОНА ВДАЛИ.
+    - Автоматический запуск роторов строго через 5.4с после отсчёта BLHeli.
+    - Полная блокировка кнопки R.
 --]]
 
 if not SERVER then return end
@@ -62,15 +60,36 @@ hook.Add("PlayerDisconnected", "Async_CleanupOnDisconnect", function(ply)
     SpawnCooldowns[sid] = nil
 end)
 
+-- ГАРАНТИРОВАННЫЙ ПЕРЕХВАТ УРОНА ДЕЛЯ ОПЕРАТОРА НА ЗЕМЛЕ — 0 УРОНА ПРИ ДЕТОНАЦИИ ВДАЛИ
 hook.Add("EntityTakeDamage", "Async_EjectOperatorBeforeDroneExplodes", function(ent, dmginfo)
     if not IsValid(ent) then return end
+
+    -- Если урон наносится игроку-оператору:
+    if ent:IsPlayer() then
+        local groundPos = ent._LVSGroundPos
+        local activeDrone = ent:GetNWEntity("KVN_ActiveDrone")
+        if IsValid(activeDrone) and groundPos then
+            local dmgPos = dmginfo:GetReportedPosition()
+            if not dmgPos or dmgPos == vector_origin then dmgPos = dmginfo:GetDamagePosition() end
+
+            -- Если место взрыва дальше 150u от физических ног на земле — ПОЛНЫЙ 0 УРОНА!
+            if groundPos:Distance(dmgPos) > 150 or dmginfo:GetAttacker() == activeDrone or dmginfo:GetInflictor() == activeDrone then
+                dmginfo:SetDamage(0)
+                dmginfo:ScaleDamage(0)
+                SafeReturnOperatorToGround(ent, activeDrone)
+                return true
+            end
+        end
+    end
+
+    -- Если урон наносится самому дрону:
     local cls = ent:GetClass():lower()
     local isDrone = ASYNC_DRONE_CLASSES[cls] or ent.LVSUAV or cls:find("crocus") or cls:find("mavic") or cls:find("kvn")
-    if not isDrone then return end
-
-    local owner = ent._AsyncOperator
-    if IsValid(owner) and (ent:GetHP() <= dmginfo:GetDamage() or dmginfo:IsDamageType(DMG_BLAST)) then
-        SafeReturnOperatorToGround(owner, ent)
+    if isDrone then
+        local owner = ent._AsyncOperator
+        if IsValid(owner) and (ent:GetHP() <= dmginfo:GetDamage() or dmginfo:IsDamageType(DMG_BLAST)) then
+            SafeReturnOperatorToGround(owner, ent)
+        end
     end
 end)
 
@@ -95,12 +114,8 @@ hook.Add("EntityRemoved", "Async_CleanupDrone", function(ent)
     end
 end)
 
--- Блокировка ручной смены состояния моторов по R
 hook.Add("LVS:CanToggleEngine", "Async_ProhibitManualEngineToggle", function(drone, ply)
     if IsValid(drone) and (drone._AsyncSpawned or ASYNC_DRONE_CLASSES[drone:GetClass():lower()]) then
-        if drone._AsyncAllowEngineToggle then
-            return true
-        end
         return false
     end
 end)
@@ -183,7 +198,6 @@ net.Receive("Async_SpawnDrone", function(len, ply)
         end
     end)
 
-    -- ЗВУК СТАРТЕРА BLHeli 5.4 СЕКУНДЫ
     drone:EmitSound("zasync/vkluchenie.mp3", 75, 100)
 
     timer.Simple(0.3, function()
@@ -192,19 +206,13 @@ net.Receive("Async_SpawnDrone", function(len, ply)
         end
     end)
 
-    -- АВТОМАТИЧЕСКИЙ ЗАПУСК ДВИГАТЕЛЕЙ ПОСЛЕ 5.4 СЕКУНДЫ КД
     timer.Simple(5.4, function()
         if IsValid(drone) and IsValid(ply) then
-            drone._AsyncAllowEngineToggle = true
-
             if drone.SetEngineUser then drone:SetEngineUser(ply) end
             if drone.SetEngineActive then drone:SetEngineActive(true) end
             if drone.StartEngine then drone:StartEngine() end
             if drone.SetThrottle then drone:SetThrottle(1) end
             if drone.SetMaxThrottle then drone:SetMaxThrottle(1) end
-            if drone.OnEngineStarted then drone:OnEngineStarted() end
-
-            drone._AsyncAllowEngineToggle = nil
         end
     end)
 

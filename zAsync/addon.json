@@ -3,9 +3,7 @@
 	"type": "gamemode",
 	"tags": [
 		"roleplay",
-		"fun",
-		"military"
+		"fun"
 	],
-	"description": "Сборка Z-City с FPV-дронами LVS и встроенным пультом управления",
 	"ignore": []
 }
