@@ -1,8 +1,7 @@
 --[[
     Серверный модуль FPV-дронов (zAsync)
-    - Звук дрона НЕ выключается при выходе на E, а продолжается в 3D-мире до детонации/уничтожения.
-    - Очищены все лишние параллельные фоновые звуки.
-    - Автоматический запуск роторов строго через 5.4с после стартовой последовательности BLHeli.
+    - Исправлена синтаксическая ошибка GLua в ветвлении классов.
+    - Регистрируются все сетевые сообщения для клиента.
 --]]
 
 if not SERVER then return end
@@ -41,8 +40,6 @@ local function SafeReturnOperatorToGround(ply, drone)
 
     ply:SetNWEntity("KVN_ActiveDrone", NULL)
     ply:SetNWEntity("LVS_Vehicle", NULL)
-
-    -- ЗВУК ДРОНА НЕ ГЛУШИТСЯ ПРИ ВЫХОДЕ — ДРОН ПРОДОЛЖАЕТ ИЗДАВАТЬ ЗВУКИ В 3D МИРЕ ДО ВЗРЫВА!
 end
 
 hook.Add("PlayerDeath", "Async_OperatorDeathCleanup", function(ply)
@@ -117,9 +114,13 @@ net.Receive("Async_SpawnDrone", function(len, ply)
 
     local clsLower = droneClass:lower()
     if not ASYNC_DRONE_CLASSES[clsLower] then
-        if clsLower:find("crocus") then droneClass = "sw_crocus_pg7"
-        elif clsLower:find("mavic") then droneClass = "sw_mavic_2"
-        else droneClass = "lvs_kvn1" end
+        if clsLower:find("crocus") then
+            droneClass = "sw_crocus_pg7"
+        elseif clsLower:find("mavic") then
+            droneClass = "sw_mavic_2"
+        else
+            droneClass = "lvs_kvn1"
+        end
         clsLower = droneClass:lower()
     end
 
@@ -176,7 +177,6 @@ net.Receive("Async_SpawnDrone", function(len, ply)
         end
     end)
 
-    -- ЧИСТЫЙ СТАРТОВЫЙ ЗВУК ОТ САМОГО ДРОНА (БЕЗ ЛИШНИХ ЗАГЛУШЕК И ПОВТОРОВ)
     drone:EmitSound("zasync/vkluchenie.mp3", 75, 100)
 
     timer.Simple(0.3, function()
