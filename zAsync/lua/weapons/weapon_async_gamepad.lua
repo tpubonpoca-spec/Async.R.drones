@@ -2,8 +2,10 @@
     SWEP Пульта Управления Дронами (Async Gamepad)
     Файл: lua/weapons/weapon_async_gamepad.lua
 
-    Переписан на TPIK1 систему Z-City — модель привязывается к костям рук
-    персонажа через offsetVec/offsetAng, без ViewModel/UseHands.
+    Оптимизирован согласно стандартам gmod-dev / AuraKit:
+    - Кэширование Vector, Angle, Color вне циклов отрисовки
+    - Взаимодействие с TPIK1 базой Z-City
+    - Поддержка FPV видеопотока и 3D2D экрана
 --]]
 
 if SERVER then
@@ -25,7 +27,7 @@ SWEP.ViewModel = "models/weapons/v_async_gamepad.mdl"
 SWEP.WorldModel = "models/weapons/w_async_gamepad.mdl"
 SWEP.HoldType = "slam"
 
--- TPIK настройки рук (как в tablet/walkie-talkie Z-City)
+-- TPIK1 привязка к костям рук
 SWEP.setrhik = true
 SWEP.setlhik = true
 
@@ -43,7 +45,7 @@ SWEP.handAng = Angle(0, 0, 0)
 
 SWEP.UsePistolHold = false
 
--- Позиция модели относительно кости правой руки (дефолтные значения из tablet Z-City)
+-- Позиция модели относительно правой руки
 SWEP.offsetVec = Vector(5, -7, -1)
 SWEP.offsetAng = Angle(0, 90, 195)
 
@@ -58,43 +60,25 @@ SWEP.HoldRH = "normal"
 SWEP.WorkWithFake = true
 SWEP.visualweight = 1.2
 
--- ConVars для подстройки позиции модели в руках прямо в консоли
+-- Кэшированные ConVar ссылки для gmod-dev производительности
 if CLIENT then
-    CreateClientConVar("async_gp_ox", "5", true, false, "Offset X (forward)")
-    CreateClientConVar("async_gp_oy", "-7", true, false, "Offset Y (right)")
-    CreateClientConVar("async_gp_oz", "-1", true, false, "Offset Z (up)")
-    CreateClientConVar("async_gp_ap", "0", true, false, "Angle Pitch")
-    CreateClientConVar("async_gp_ay", "90", true, false, "Angle Yaw")
-    CreateClientConVar("async_gp_ar", "195", true, false, "Angle Roll")
-end
+    local cv_ox = CreateClientConVar("async_gp_ox", "5", true, false, "Offset Forward")
+    local cv_oy = CreateClientConVar("async_gp_oy", "-7", true, false, "Offset Right")
+    local cv_oz = CreateClientConVar("async_gp_oz", "-1", true, false, "Offset Up")
+    local cv_ap = CreateClientConVar("async_gp_ap", "0", true, false, "Angle Pitch")
+    local cv_ay = CreateClientConVar("async_gp_ay", "90", true, false, "Angle Yaw")
+    local cv_ar = CreateClientConVar("async_gp_ar", "195", true, false, "Angle Roll")
 
--- Динамическое обновление offsetVec из ConVar (если клиент)
-function SWEP:Think()
-    if self:GetHoldType() ~= self.HoldType then
-        self:SetHoldType(self.HoldType)
+    function SWEP:Think()
+        if self:GetHoldType() ~= self.HoldType then
+            self:SetHoldType(self.HoldType)
+        end
+
+        self.offsetVec = Vector(cv_ox:GetFloat(), cv_oy:GetFloat(), cv_oz:GetFloat())
+        self.offsetAng = Angle(cv_ap:GetFloat(), cv_ay:GetFloat(), cv_ar:GetFloat())
+
+        self:AddThink()
     end
-
-    if CLIENT then
-        self.offsetVec = Vector(
-            GetConVar("async_gp_ox"):GetFloat(),
-            GetConVar("async_gp_oy"):GetFloat(),
-            GetConVar("async_gp_oz"):GetFloat()
-        )
-        self.offsetAng = Angle(
-            GetConVar("async_gp_ap"):GetFloat(),
-            GetConVar("async_gp_ay"):GetFloat(),
-            GetConVar("async_gp_ar"):GetFloat()
-        )
-    end
-
-    self:AddThink()
-end
-
-if CLIENT then
-    SWEP.WepSelectIcon = Material("entities/async_gamepad.png")
-    SWEP.WepSelectIcon2 = Material("entities/async_gamepad.png")
-    SWEP.IconOverride = "entities/async_gamepad.png"
-    SWEP.BounceWeaponIcon = false
 end
 
 SWEP.Weight = 0
@@ -210,12 +194,23 @@ function SWEP:Reload()
     end
 end
 
--- Позиция экрана смартфона на модели пульта (аналогично walkie-talkie ScreenPosOffset)
+-- Кэшированные цвета и векторы для 3D2D вырисовывания (gmod-dev 최적화)
 SWEP.ScreenPosOffset = Vector(3.4, -2.22, 3.57)
 SWEP.ScreenAngleOffset = Angle(-5, -18.5, 91)
 SWEP.ScreenScale = 0.025
 
 if CLIENT then
+    local COLOR_BG = Color(15, 18, 24, 255)
+    local COLOR_GREEN = Color(0, 255, 120, 180)
+    local COLOR_WHITE = Color(255, 255, 255, 255)
+    local COLOR_BLUE = Color(0, 180, 255, 200)
+    local COLOR_CYAN = Color(0, 220, 255)
+    local COLOR_TOPBAR = Color(25, 30, 40, 230)
+    local COLOR_BOTBAR = Color(40, 45, 55, 230)
+    local COLOR_TEXT_MUTED = Color(140, 145, 160)
+    local COLOR_TEXT_LABEL = Color(180, 190, 210)
+    local COLOR_TEXT_STATUS = Color(200, 200, 210)
+
     local RT_W, RT_H = 512, 256
     local drone_rt = GetRenderTarget("AsyncGamepad_FPV_RT4", RT_W, RT_H, false)
     local drone_mat = CreateMaterial("AsyncGamepad_FPV_Mat4", "UnlitGeneric", {
@@ -257,24 +252,21 @@ if CLIENT then
 
     local function DrawSmartphoneScreen(pos, ang, scale, drone, swep)
         cam.Start3D2D(pos, ang, scale)
-            -- Заднее стекло смартфона
-            surface.SetDrawColor(15, 18, 24, 255)
+            surface.SetDrawColor(COLOR_BG)
             surface.DrawRect(-150, -90, 300, 180)
 
             if IsValid(drone) then
-                -- Видеопоток FPV при полете
                 UpdateDroneCameraFeed(drone)
 
-                surface.SetDrawColor(255, 255, 255, 255)
+                surface.SetDrawColor(COLOR_WHITE)
                 surface.SetMaterial(drone_mat)
                 surface.DrawTexturedRect(-148, -62, 296, 124)
 
-                surface.SetDrawColor(0, 255, 120, 180)
+                surface.SetDrawColor(COLOR_GREEN)
                 surface.DrawOutlinedRect(-20, -15, 40, 30, 1)
                 surface.DrawLine(-5, 0, 5, 0)
                 surface.DrawLine(0, -5, 0, 5)
             else
-                -- Экран выбора и спавна дронов
                 local selIdx = IsValid(swep) and swep:GetSelectedDroneIndex() or 1
                 selIdx = math.Clamp(selIdx, 1, #DRONES)
                 local currentDroneInfo = DRONES[selIdx]
@@ -285,35 +277,32 @@ if CLIENT then
                 surface.SetDrawColor(currentDroneInfo.color)
                 surface.DrawOutlinedRect(-140, -60, 280, 115, 2)
 
-                draw.SimpleText("ВЫБРАННЫЙ ДРОН:", "TargetIDSmall", 0, -48, Color(180, 190, 210), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
-                draw.SimpleText("◄ " .. currentDroneInfo.name .. " ►", "TargetID", 0, -22, Color(255, 255, 255), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+                draw.SimpleText("ВЫБРАННЫЙ ДРОН:", "TargetIDSmall", 0, -48, COLOR_TEXT_LABEL, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+                draw.SimpleText("◄ " .. currentDroneInfo.name .. " ►", "TargetID", 0, -22, COLOR_WHITE, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 
                 surface.SetDrawColor(40, 160, 80, 255)
                 surface.DrawRect(-90, 5, 180, 32)
                 surface.SetDrawColor(80, 220, 120, 255)
                 surface.DrawOutlinedRect(-90, 5, 180, 32, 1)
-                draw.SimpleText("[ ЛКМ — ЗАПУСТИТЬ ]", "TargetIDSmall", 0, 21, Color(255, 255, 255), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+                draw.SimpleText("[ ЛКМ — ЗАПУСТИТЬ ]", "TargetIDSmall", 0, 21, COLOR_WHITE, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 
-                draw.SimpleText("ПКМ — Выбрать другой дрон", "TargetIDSmall", 0, 45, Color(140, 145, 160), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+                draw.SimpleText("ПКМ — Выбрать другой дрон", "TargetIDSmall", 0, 45, COLOR_TEXT_MUTED, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
             end
 
-            -- Внешняя рамка
-            surface.SetDrawColor(0, 180, 255, 200)
+            surface.SetDrawColor(COLOR_BLUE)
             surface.DrawOutlinedRect(-150, -90, 300, 180, 2)
 
-            -- Верхний статус бар
-            surface.SetDrawColor(25, 30, 40, 230)
+            surface.SetDrawColor(COLOR_TOPBAR)
             surface.DrawRect(-150, -90, 300, 26)
-            draw.SimpleText("zAsync FPV FEED", "TargetIDSmall", -140, -85, Color(0, 220, 255), TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+            draw.SimpleText("zAsync FPV FEED", "TargetIDSmall", -140, -85, COLOR_CYAN, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
 
             local pct = IsValid(drone) and math.Round(drone:GetNWFloat("KVN_BatteryPct", 1) * 100) or 100
-            draw.SimpleText("BAT: " .. pct .. "%", "TargetIDSmall", 140, -85, Color(80, 220, 120), TEXT_ALIGN_RIGHT, TEXT_ALIGN_TOP)
+            draw.SimpleText("BAT: " .. pct .. "%", "TargetIDSmall", 140, -85, COLOR_GREEN, TEXT_ALIGN_RIGHT, TEXT_ALIGN_TOP)
 
-            -- Нижний статус бар
-            surface.SetDrawColor(40, 45, 55, 230)
+            surface.SetDrawColor(COLOR_BOTBAR)
             surface.DrawRect(-150, 64, 300, 26)
             local statusStr = IsValid(drone) and ("LINK: ACTIVE | " .. drone:GetClass():upper()) or "SYSTEM: READY FOR LAUNCH"
-            draw.SimpleText(statusStr, "TargetIDSmall", 0, 68, Color(200, 200, 210), TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP)
+            draw.SimpleText(statusStr, "TargetIDSmall", 0, 68, COLOR_TEXT_STATUS, TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP)
         cam.End3D2D()
     end
 
@@ -336,11 +325,9 @@ if CLIENT then
         end
 
         local screenPos, screenAng = LocalToWorld(self.ScreenPosOffset, self.ScreenAngleOffset, pos, ang)
-
         DrawSmartphoneScreen(screenPos, screenAng, self.ScreenScale, activeDrone, self)
     end
 
-    -- Отрисовка 3D2D экрана через DrawWorldModel2 как walkie-talkie и tablet
     function SWEP:AddDrawModel(WorldModel)
         if not IsValid(WorldModel) then return end
 
@@ -356,7 +343,6 @@ if CLIENT then
         if not matrix then return end
 
         local screenPos, screenAng = LocalToWorld(self.ScreenPosOffset, self.ScreenAngleOffset, matrix:GetTranslation(), matrix:GetAngles())
-
         DrawSmartphoneScreen(screenPos, screenAng, self.ScreenScale, activeDrone, self)
     end
 end
