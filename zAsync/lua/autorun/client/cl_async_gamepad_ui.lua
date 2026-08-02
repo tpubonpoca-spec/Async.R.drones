@@ -34,15 +34,15 @@ local DRONES = {
         color = Color(240, 180, 0),
     },
     {
-        class = "lvs_crocus_remastered",
-        name = "4. CROCUS REMASTERED",
-        desc = "CROCUS REMASTERED FPV UNIT / HIGH MANEUVERABILITY",
+        class = "sw_crocus_pg7",
+        name = "4. CROCUS REMASTERED (PG-7)",
+        desc = "CROCUS REMASTERED FPV UNIT / HIGH SPEED / PG-7",
         speed = "130 KM/H",
-        payload = "CROCUS STRIKE",
+        payload = "PG-7 CHARGE",
         color = Color(0, 255, 140),
     },
     {
-        class = "mavic_2_remastered",
+        class = "sw_mavic_2",
         name = "5. MAVIC 2 REMASTERED",
         desc = "MAVIC 2 REMASTERED FPV UNIT / HIGH ZOOM OPTICS",
         speed = "70 KM/H",
@@ -174,7 +174,7 @@ function ASYNC_UI.OpenMenu()
         draw.SimpleText("• MAX SPEED: " .. info.speed, "BIOS_Font", 10, 144, BIOS_WHITE, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
         draw.SimpleText("• PAYLOAD:   " .. info.payload, "BIOS_Font", 10, 166, BIOS_WHITE, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
         draw.SimpleText("• ESC POST:  5.4 SECONDS", "BIOS_Font", 10, 188, BIOS_YELLOW, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
-        draw.SimpleText("• DAMAGE PROT: ACTIVE (>150u)", "BIOS_Font", 10, 210, Color(0, 255, 140), TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+        draw.SimpleText("• AUTO-START ENGINE: ACTIVE", "BIOS_Font", 10, 210, Color(0, 255, 140), TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
     end
 
     local spawnBtn = vgui.Create("DButton", rightPanel)

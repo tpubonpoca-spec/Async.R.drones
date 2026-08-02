@@ -1,5 +1,7 @@
 --[[
-    Серверный спавнер дронов (zAsync + Crocus Remastered + Mavic 2 Remastered)
+    Серверный спавнер дронов (zAsync + Crocus + Mavic 2 + KVN)
+    - Автоматический пуск двигателя строго через 5.4с после BLHeli ESC звука.
+    - Блокировка ручного запуска двигателя на R.
 --]]
 
 if not SERVER then return end
@@ -9,13 +11,16 @@ util.AddNetworkString("Async_DroneStatus")
 util.AddNetworkString("Async_DisconnectDrone")
 
 local ASYNC_DRONE_CLASSES = {
-    ["lvs_kvn1"] = true,
-    ["lvs_kvn2"] = true,
-    ["lvs_kvn3"] = true,
-    ["lvs_crocus"] = true,
-    ["lvs_crocus_remastered"] = true,
-    ["mavic_2_remastered"] = true,
-    ["lvs_mavic2"] = true,
+    ["lvs_kvn1"]        = true,
+    ["lvs_kvn2"]        = true,
+    ["lvs_kvn3"]        = true,
+    ["sw_crocus"]       = true,
+    ["sw_crocus_pg7"]   = true,
+    ["sw_crocus_tbg7"]  = true,
+    ["sw_mavic_2"]      = true,
+    ["sw_mavic2"]       = true,
+    ["lvs_mavic2"]      = true,
+    ["mavic2"]          = true,
 }
 
 local ActiveDrones = {}
@@ -42,7 +47,7 @@ end)
 hook.Add("EntityRemoved", "Async_CleanupDrone", function(ent)
     if not IsValid(ent) then return end
     local cls = ent:GetClass():lower()
-    local isDrone = ASYNC_DRONE_CLASSES[cls] or ent.LVSUAV or cls:find("crocus") or cls:find("mavic")
+    local isDrone = ASYNC_DRONE_CLASSES[cls] or ent.LVSUAV or cls:find("crocus") or cls:find("mavic") or cls:find("kvn")
     if not isDrone then return end
 
     for sid, drone in pairs(ActiveDrones) do
@@ -61,6 +66,13 @@ hook.Add("EntityRemoved", "Async_CleanupDrone", function(ent)
             end
             break
         end
+    end
+end)
+
+-- Запрет ручного запуска/остановки двигателя по кнопке R
+hook.Add("LVS:CanToggleEngine", "Async_ProhibitManualEngineToggle", function(drone, ply)
+    if IsValid(drone) and (drone._AsyncSpawned or ASYNC_DRONE_CLASSES[drone:GetClass():lower()]) then
+        return false
     end
 end)
 
@@ -89,8 +101,11 @@ net.Receive("Async_SpawnDrone", function(len, ply)
     local sid = ply:SteamID()
 
     local clsLower = droneClass:lower()
-    if not (ASYNC_DRONE_CLASSES[clsLower] or clsLower:find("crocus") or clsLower:find("mavic") or clsLower:find("kvn")) then
-        return
+    if not ASYNC_DRONE_CLASSES[clsLower] then
+        if clsLower:find("crocus") then droneClass = "sw_crocus_pg7"
+        elif clsLower:find("mavic") then droneClass = "sw_mavic_2"
+        else droneClass = "lvs_kvn1" end
+        clsLower = droneClass:lower()
     end
 
     local now = CurTime()
@@ -101,7 +116,6 @@ net.Receive("Async_SpawnDrone", function(len, ply)
         ActiveDrones[sid] = nil
     end
 
-    -- Запоминаем наземную позицию оператора перед входом для защиты и возврата
     ply._LVSGroundPos = ply:GetPos()
 
     local spawnPos = ply:GetPos() + ply:GetForward() * 80 + Vector(0, 0, 30)
@@ -117,7 +131,6 @@ net.Receive("Async_SpawnDrone", function(len, ply)
 
     local drone = ents.Create(droneClass)
     if not IsValid(drone) then
-        -- Единый фоллбэк если специфический класс не установлен
         drone = ents.Create("lvs_kvn1")
     end
 
@@ -148,11 +161,21 @@ net.Receive("Async_SpawnDrone", function(len, ply)
         end
     end)
 
+    -- Воспроизведение звука BLHeli
     ply:EmitSound("zasync/vkluchenie.mp3", 75, 100, 1)
 
     timer.Simple(0.3, function()
         if IsValid(ply) then
             ply:EmitSound("zasync/esc_startup.mp3", 75, 100, 1)
+        end
+    end)
+
+    -- АВТОМАТИЧЕСКИЙ ЗАПУСК ДВИГАТЕЛЯ ПОСЛЕ КД 5.4 СЕКУНДЫ
+    timer.Simple(5.4, function()
+        if IsValid(drone) and IsValid(ply) and ply:GetNWEntity("KVN_ActiveDrone") == drone then
+            if drone.SetEngineUser then drone:SetEngineUser(ply) end
+            if drone.SetEngineActive then drone:SetEngineActive(true) end
+            if drone.StartEngine then drone:StartEngine() end
         end
     end)
 
