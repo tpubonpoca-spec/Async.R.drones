@@ -1,8 +1,8 @@
 --[[
     Серверный спавнер дронов (zAsync + Crocus + Mavic 2 + KVN)
-    - Полный 5.4-секундный стартовый звук BLHeli (vkluchenie.mp3 + esc_startup.mp3).
-    - Автоматический полноценный старт моторов с 100% тягой ровно по истечении 5.4с.
-    - Вшитые сущности lvs_crocus и lvs_mavic2 со всеми исходными фалами.
+    - Исправлен синтаксис ветвления классов на раздельные строки.
+    - Полный 5.4-секундный стартовый звук BLHeli ESC (vkluchenie.mp3 + esc_startup.mp3).
+    - Автоматический запуск моторов роторов с 100% тягой через 5.4 секунды.
 --]]
 
 if not SERVER then return end
@@ -116,7 +116,7 @@ net.Receive("Async_SpawnDrone", function(len, ply)
     if not ASYNC_DRONE_CLASSES[clsLower] then
         if clsLower:find("crocus") then
             droneClass = "lvs_crocus"
-        elif clsLower:find("mavic") then
+        elseif clsLower:find("mavic") then
             droneClass = "lvs_mavic2"
         else
             droneClass = "lvs_kvn1"
@@ -177,7 +177,6 @@ net.Receive("Async_SpawnDrone", function(len, ply)
         end
     end)
 
-    -- 5.4 СЕКУНДНЫЙ СТАРТОВЫЙ ЗВУК BLHeli ESC (ВОСПРОИЗВОДИТСЯ ПОЛНОСТЬЮ ОТ ДРОНА)
     drone:EmitSound("zasync/vkluchenie.mp3", 75, 100)
 
     timer.Simple(0.3, function()
@@ -186,7 +185,6 @@ net.Receive("Async_SpawnDrone", function(len, ply)
         end
     end)
 
-    -- АВТОМАТИЧЕСКИЙ ЗАПУСК ДВИГАТЕЛЕЙ ПОСЛЕ ЗАВЕРШЕНИЯ КД 5.4 СЕКУНДЫ
     timer.Simple(5.4, function()
         if IsValid(drone) and IsValid(ply) then
             if drone.SetEngineUser then drone:SetEngineUser(ply) end
