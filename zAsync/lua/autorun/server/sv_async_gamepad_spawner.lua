@@ -1,9 +1,8 @@
 --[[
     Серверный модуль FPV-дронов (zAsync)
-    - Игрок надежно возвращается на наземную позицию _LVSGroundPos ПЕРЕД детонацией.
-    - Взрыв дрона на расстоянии (>150u) наносит 0 урона оператору.
-    - Стартовые звуки проигрываются ОТ ДРОНА (drone:EmitSound), а не от игрока.
-    - Полностью убраны технические звуки-заглушки (buttons/button10.wav).
+    - Звук дрона НЕ выключается при выходе на E, а продолжается в 3D-мире до детонации/уничтожения.
+    - Очищены все лишние параллельные фоновые звуки.
+    - Автоматический запуск роторов строго через 5.4с после стартовой последовательности BLHeli.
 --]]
 
 if not SERVER then return end
@@ -43,10 +42,7 @@ local function SafeReturnOperatorToGround(ply, drone)
     ply:SetNWEntity("KVN_ActiveDrone", NULL)
     ply:SetNWEntity("LVS_Vehicle", NULL)
 
-    if IsValid(drone) then
-        drone:StopSound("zasync/vkluchenie.mp3")
-        drone:StopSound("zasync/esc_startup.mp3")
-    end
+    -- ЗВУК ДРОНА НЕ ГЛУШИТСЯ ПРИ ВЫХОДЕ — ДРОН ПРОДОЛЖАЕТ ИЗДАВАТЬ ЗВУКИ В 3D МИРЕ ДО ВЗРЫВА!
 end
 
 hook.Add("PlayerDeath", "Async_OperatorDeathCleanup", function(ply)
@@ -67,7 +63,6 @@ hook.Add("PlayerDisconnected", "Async_CleanupOnDisconnect", function(ply)
     SpawnCooldowns[sid] = nil
 end)
 
--- Перехват столкновения/урона дрона ДО детонации для спасения оператора
 hook.Add("EntityTakeDamage", "Async_EjectOperatorBeforeDroneExplodes", function(ent, dmginfo)
     if not IsValid(ent) then return end
     local cls = ent:GetClass():lower()
@@ -112,10 +107,6 @@ net.Receive("Async_DisconnectDrone", function(len, ply)
 
     local activeDrone = ply:GetNWEntity("KVN_ActiveDrone")
     SafeReturnOperatorToGround(ply, activeDrone)
-
-    if IsValid(activeDrone) then
-        activeDrone:Remove()
-    end
 end)
 
 net.Receive("Async_SpawnDrone", function(len, ply)
@@ -185,17 +176,17 @@ net.Receive("Async_SpawnDrone", function(len, ply)
         end
     end)
 
-    -- ЗВУКИ ИЗДАЮТСЯ ИМЕННО ОТ ДРОНА (drone:EmitSound) И ПРЕКРАЩАЮТСЯ ПРИ ВЫХОДЕ
-    drone:EmitSound("zasync/vkluchenie.mp3", 85, 100, 1)
+    -- ЧИСТЫЙ СТАРТОВЫЙ ЗВУК ОТ САМОГО ДРОНА (БЕЗ ЛИШНИХ ЗАГЛУШЕК И ПОВТОРОВ)
+    drone:EmitSound("zasync/vkluchenie.mp3", 75, 100)
 
     timer.Simple(0.3, function()
         if IsValid(drone) then
-            drone:EmitSound("zasync/esc_startup.mp3", 85, 100, 1)
+            drone:EmitSound("zasync/esc_startup.mp3", 75, 100)
         end
     end)
 
     timer.Simple(5.4, function()
-        if IsValid(drone) and IsValid(ply) and ply:GetNWEntity("KVN_ActiveDrone") == drone then
+        if IsValid(drone) and IsValid(ply) then
             if drone.SetEngineUser then drone:SetEngineUser(ply) end
             if drone.SetEngineActive then drone:SetEngineActive(true) end
             if drone.StartEngine then drone:StartEngine() end
