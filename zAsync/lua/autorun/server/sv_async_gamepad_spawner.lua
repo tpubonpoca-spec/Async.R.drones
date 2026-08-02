@@ -1,10 +1,10 @@
 --[[
-    Серверный модуль настоящей дистанционной связи FPV-дронов (zAsync)
+    Серверный модуль дистанционного управления FPV-дронами (zAsync)
     Стиль: ОС "ЗАРЯ" v3.12 (Минобороны РФ / Ростех)
 
     - Настоящий игрок СТОИТ НА ЗЕМЛЕ в своём физическом теле.
     - Никаких прокси, подмен, NPC или входов в транспортные кресла.
-    - Управление передаётся на дрон через физический серверный контроллер.
+    - Передача управления в LVS систему через drone:SetDriver(ply).
     - Клавиша E (+use) — экстренное отключение связи.
     - Стартовые звуки (vkluchenie.mp3 -> 0.3s -> esc_startup.mp3) + блокировка 5.4с.
 --]]
@@ -30,7 +30,9 @@ hook.Add("PlayerHurt", "Async_OperatorHurtDisconnect", function(ply, attacker, h
 
     local activeDrone = ply:GetNWEntity("KVN_ActiveDrone")
     if IsValid(activeDrone) then
+        if activeDrone.SetDriver then activeDrone:SetDriver(NULL) end
         ply:SetNWEntity("KVN_ActiveDrone", NULL)
+        ply:SetNWEntity("LVS_Vehicle", NULL)
         ply:EmitSound("buttons/button10.wav", 75, 90)
         ply:ChatPrint("[ОС ЗАРЯ] ВНИМАНИЕ: Потеря сигнала связи из-за получения урона оператором на земле!")
     end
@@ -43,6 +45,7 @@ hook.Add("PlayerDeath", "Async_OperatorDeathCleanup", function(ply)
     end
     ActiveDrones[sid] = nil
     ply:SetNWEntity("KVN_ActiveDrone", NULL)
+    ply:SetNWEntity("LVS_Vehicle", NULL)
 end)
 
 hook.Add("PlayerDisconnected", "Async_CleanupOnDisconnect", function(ply)
@@ -65,6 +68,7 @@ hook.Add("EntityRemoved", "Async_CleanupDrone", function(ent)
             local owner = ent._AsyncOperator
             if IsValid(owner) then
                 owner:SetNWEntity("KVN_ActiveDrone", NULL)
+                owner:SetNWEntity("LVS_Vehicle", NULL)
                 net.Start("Async_DroneStatus")
                     net.WriteUInt(0, 2)
                 net.Send(owner)
@@ -80,13 +84,15 @@ net.Receive("Async_DisconnectDrone", function(len, ply)
 
     local activeDrone = ply:GetNWEntity("KVN_ActiveDrone")
     if IsValid(activeDrone) then
+        if activeDrone.SetDriver then activeDrone:SetDriver(NULL) end
         ply:SetNWEntity("KVN_ActiveDrone", NULL)
+        ply:SetNWEntity("LVS_Vehicle", NULL)
         ply:EmitSound("buttons/button10.wav", 75, 100)
         ply:ChatPrint("[ОС ЗАРЯ] Оператор отключился от канала связи БПЛА.")
     end
 end)
 
--- Физический серверный контроллер управления полётом дрона от оператора на земле
+-- Резервный физический контроллер управления для корректного полета дронов в LVS
 hook.Add("StartCommand", "Async_DroneRemoteFlightController", function(ply, cmd)
     if not IsValid(ply) or not ply:Alive() then return end
 
@@ -95,7 +101,9 @@ hook.Add("StartCommand", "Async_DroneRemoteFlightController", function(ply, cmd)
 
     -- Клавиша E (IN_USE) — отключение от дрона
     if cmd:KeyDown(IN_USE) then
+        if drone.SetDriver then drone:SetDriver(NULL) end
         ply:SetNWEntity("KVN_ActiveDrone", NULL)
+        ply:SetNWEntity("LVS_Vehicle", NULL)
         ply:EmitSound("buttons/button10.wav", 75, 100)
         ply:ChatPrint("[ОС ЗАРЯ] Связь разорвана по нажатию E.")
         return
@@ -107,7 +115,7 @@ hook.Add("StartCommand", "Async_DroneRemoteFlightController", function(ply, cmd)
     local phys = drone:GetPhysicsObject()
     if not IsValid(phys) then return end
 
-    -- Чтение клавиш управления (WASD + Space + Shift)
+    -- Чтение клавиш управления
     local fwd = 0
     if cmd:KeyDown(IN_FORWARD) then fwd = fwd + 1 end
     if cmd:KeyDown(IN_BACK) then fwd = fwd - 1 end
@@ -120,13 +128,11 @@ hook.Add("StartCommand", "Async_DroneRemoteFlightController", function(ply, cmd)
     if cmd:KeyDown(IN_JUMP) then up = up + 1 end
     if cmd:KeyDown(IN_SPEED) or cmd:KeyDown(IN_DUCK) then up = up - 1 end
 
-    -- Управление углами через движения мыши оператора
     local eyeAng = ply:EyeAngles()
-    local targetAng = Angle(eyeAng.p, eyeAng.y, side * -25)
-    phys:SetAngles(LerpAngle(0.1, phys:GetAngles(), targetAng))
+    local targetAng = Angle(eyeAng.p, eyeAng.y, side * -20)
+    phys:SetAngles(LerpAngle(0.15, phys:GetAngles(), targetAng))
 
-    -- Приложение импульса/тяги двигателей
-    local moveVec = drone:GetForward() * fwd * 1200 + drone:GetRight() * side * 600 + Vector(0, 0, up * 800)
+    local moveVec = drone:GetForward() * fwd * 1400 + drone:GetRight() * side * 700 + Vector(0, 0, up * 900)
     phys:AddVelocity(moveVec * FrameTime())
 
     -- ЛКМ — подрыв камикадзе
@@ -201,7 +207,12 @@ net.Receive("Async_SpawnDrone", function(len, ply)
 
     -- НАСТОЯЩИЙ ИГРОК ОСТАЁТСЯ СТОЯТЬ НА ЗЕМЛЕ (без входа в кресло!)
     ply:SetNWEntity("KVN_ActiveDrone", drone)
+    ply:SetNWEntity("LVS_Vehicle", drone)
     drone:SetNWEntity("AsyncOperator", ply)
+
+    -- Назначение водителя LVS удаленно без EnterVehicle
+    if drone.SetDriver then drone:SetDriver(ply) end
+    if drone.SetEngineUser then drone:SetEngineUser(ply) end
 
     -- Воспроизведение звуковой последовательности BLHeli
     ply:EmitSound("zasync/vkluchenie.mp3", 75, 100, 1)

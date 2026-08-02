@@ -7,7 +7,11 @@ end
 function meta:lvsGetVehicle()
 	local Pod = self:GetVehicle()
 
-	if not IsValid( Pod ) then return NULL end
+	if not IsValid( Pod ) then
+		local drone = self:GetNWEntity("KVN_ActiveDrone")
+		if IsValid(drone) then return drone end
+		return NULL
+	end
 
 	if Pod.LVSchecked then
 
