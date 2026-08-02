@@ -43,7 +43,7 @@ SWEP.handAng = Angle(0, 0, 0)
 
 SWEP.UsePistolHold = false
 
--- Позиция модели относительно кости правой руки
+-- Позиция модели относительно кости правой руки (дефолтные значения из tablet Z-City)
 SWEP.offsetVec = Vector(5, -7, -1)
 SWEP.offsetAng = Angle(0, 90, 195)
 
@@ -57,6 +57,38 @@ SWEP.HoldRH = "normal"
 
 SWEP.WorkWithFake = true
 SWEP.visualweight = 1.2
+
+-- ConVars для подстройки позиции модели в руках прямо в консоли
+if CLIENT then
+    CreateClientConVar("async_gp_ox", "5", true, false, "Offset X (forward)")
+    CreateClientConVar("async_gp_oy", "-7", true, false, "Offset Y (right)")
+    CreateClientConVar("async_gp_oz", "-1", true, false, "Offset Z (up)")
+    CreateClientConVar("async_gp_ap", "0", true, false, "Angle Pitch")
+    CreateClientConVar("async_gp_ay", "90", true, false, "Angle Yaw")
+    CreateClientConVar("async_gp_ar", "195", true, false, "Angle Roll")
+end
+
+-- Динамическое обновление offsetVec из ConVar (если клиент)
+function SWEP:Think()
+    if self:GetHoldType() ~= self.HoldType then
+        self:SetHoldType(self.HoldType)
+    end
+
+    if CLIENT then
+        self.offsetVec = Vector(
+            GetConVar("async_gp_ox"):GetFloat(),
+            GetConVar("async_gp_oy"):GetFloat(),
+            GetConVar("async_gp_oz"):GetFloat()
+        )
+        self.offsetAng = Angle(
+            GetConVar("async_gp_ap"):GetFloat(),
+            GetConVar("async_gp_ay"):GetFloat(),
+            GetConVar("async_gp_ar"):GetFloat()
+        )
+    end
+
+    self:AddThink()
+end
 
 if CLIENT then
     SWEP.WepSelectIcon = Material("entities/async_gamepad.png")
