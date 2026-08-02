@@ -102,7 +102,7 @@ function ASYNC_UI.OpenMenu()
         surface.SetDrawColor(ZARYA_GREEN)
         surface.DrawRect(2, 34, w - 4, 2)
 
-        draw.SimpleText("ОС "ЗАРЯ" v3.12 | МИНОБОРОНЫ РФ | АО "ОПК"", "Zarya_Title", 12, 8, ZARYA_GREEN, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+        draw.SimpleText("ОС ЗАРЯ v3.12 | МИНОБОРОНЫ РФ | АО ОПК", "Zarya_Title", 12, 8, ZARYA_GREEN, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
         draw.SimpleText("ТЕРМИНАЛ НСУ-433 [F6]", "Zarya_Small", w - 45, 10, ZARYA_CYAN, TEXT_ALIGN_RIGHT, TEXT_ALIGN_TOP)
     end
 
@@ -273,7 +273,7 @@ hook.Add("HUDPaint", "Async_FPVOperatorHUD", function()
 
         surface.SetDrawColor(ZARYA_TITLE)
         surface.DrawRect(w * 0.15 + 2, h * 0.25 + 2, w * 0.7 - 4, 32)
-        draw.SimpleText("ОС "ЗАРЯ" v3.12 — СИСТЕМА САМОДИАГНОСТИКИ И ЗАПУСКА", "Zarya_Header", w * 0.17, h * 0.265, ZARYA_GREEN, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+        draw.SimpleText("ОС ЗАРЯ v3.12 — СИСТЕМА САМОДИАГНОСТИКИ И ЗАПУСКА", "Zarya_Header", w * 0.17, h * 0.265, ZARYA_GREEN, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
 
         draw.SimpleText("[+] ПОЛЁТНЫЙ КОНТРОЛЛЕР: BLHeli ESC INITIALIZING...", "Zarya_Text", w * 0.18, h * 0.35, ZARYA_CYAN, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
         draw.SimpleText("[+] КАНАЛ СВЯЗИ: НСУ-433 (КВАРЦ) — ПОДКЛЮЧЕНО", "Zarya_Text", w * 0.18, h * 0.39, ZARYA_GREEN, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
@@ -295,7 +295,7 @@ hook.Add("HUDPaint", "Async_FPVOperatorHUD", function()
     surface.SetDrawColor(ZARYA_BORDER)
     surface.DrawOutlinedRect(16, 16, 320, 75, 1)
 
-    draw.SimpleText("ОС "ЗАРЯ" v3.12 | " .. activeDrone:GetClass():upper(), "Zarya_Header", 26, 24, ZARYA_GREEN, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+    draw.SimpleText("ОС ЗАРЯ v3.12 | " .. activeDrone:GetClass():upper(), "Zarya_Header", 26, 24, ZARYA_GREEN, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
     draw.SimpleText("СВЯЗЬ: 100% | ОПЕРАТОР НА ЗЕМЛЕ (УЯЗВИМ)", "Zarya_Small", 26, 44, ZARYA_CYAN, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
     draw.SimpleText("[R] — Отключить канал | [F6] — Терминал", "Zarya_Small", 26, 62, ZARYA_MUTED, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
 end)
