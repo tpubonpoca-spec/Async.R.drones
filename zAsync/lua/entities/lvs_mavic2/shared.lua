@@ -8,7 +8,7 @@ ENT.Category = "[LVS] - Drones"
 ENT.Spawnable = true
 ENT.AdminOnly = false
 
-ENT.MDL = "models/drones/mavic2.mdl"
+ENT.MDL = "models/sw/avia/kvn/kvn2.mdl"
 
 ENT.MaxHP = 80
 ENT.Mass = 140
