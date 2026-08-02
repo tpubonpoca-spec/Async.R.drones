@@ -1,0 +1,6 @@
+"VertexLitGeneric"
+{
+	"$basetexture" "models/weapons/async_gamepad/plosk"
+	"$surfaceprop" "flesh"
+	"$model" "1"
+}

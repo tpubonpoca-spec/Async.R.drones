@@ -1,0 +1,6 @@
+"VertexLitGeneric"
+{
+	"$basetexture" "models/weapons/async_gamepad/c_arms_hands"
+	"$surfaceprop" "flesh"
+	"$model" "1"
+}

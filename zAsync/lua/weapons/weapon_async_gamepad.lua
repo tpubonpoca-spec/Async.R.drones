@@ -2,14 +2,15 @@
     SWEP Пульта Управления Дронами (Async Gamepad)
     Файл: lua/weapons/weapon_async_gamepad.lua
 
-    Увеличен размер экрана смартфона и выровнен угол прямого прилегания к стеклу.
+    Переписан на TPIK1 систему Z-City — модель привязывается к костям рук
+    персонажа через offsetVec/offsetAng, без ViewModel/UseHands.
 --]]
 
 if SERVER then
     AddCSLuaFile()
 end
 
-SWEP.Base = "weapon_base"
+SWEP.Base = "weapon_tpik1_base"
 
 SWEP.PrintName = "НСУ Пульт Дронов"
 SWEP.Author = "zAsync"
@@ -20,41 +21,58 @@ SWEP.Spawnable = true
 SWEP.AdminSpawnable = true
 SWEP.AdminOnly = false
 
-SWEP.ViewModel = "models/weapons/v_async_gamepad.mdl"
+SWEP.ViewModel = ""
 SWEP.WorldModel = "models/weapons/w_async_gamepad.mdl"
-SWEP.UseHands = true
+SWEP.HoldType = "slam"
+
+-- TPIK настройки рук (как в tablet/walkie-talkie Z-City)
+SWEP.setrhik = true
+SWEP.setlhik = true
+
+SWEP.LHPos = Vector(0, -6.6, 0)
+SWEP.LHAng = Angle(0, 0, 180)
+
+SWEP.RHPosOffset = Vector(0, 0, -7.6)
+SWEP.RHAngOffset = Angle(0, 15, -90)
+
+SWEP.LHPosOffset = Vector(0, 0, -0.4)
+SWEP.LHAngOffset = Angle(5, 0, 15)
+
+SWEP.handPos = Vector(0, 0, 0)
+SWEP.handAng = Angle(0, 0, 0)
+
+SWEP.UsePistolHold = false
+
+-- Позиция модели относительно кости правой руки
+SWEP.offsetVec = Vector(5, -7, -1)
+SWEP.offsetAng = Angle(0, 90, 195)
+
+SWEP.HeadPosOffset = Vector(15, 1.7, -5)
+SWEP.HeadAngOffset = Angle(-90, 0, -90)
+
+SWEP.BaseBone = "ValveBiped.Bip01_Head1"
+
+SWEP.HoldLH = "normal"
+SWEP.HoldRH = "normal"
+
+SWEP.WorkWithFake = true
+SWEP.visualweight = 1.2
 
 if CLIENT then
     SWEP.WepSelectIcon = Material("entities/async_gamepad.png")
     SWEP.WepSelectIcon2 = Material("entities/async_gamepad.png")
     SWEP.IconOverride = "entities/async_gamepad.png"
     SWEP.BounceWeaponIcon = false
-
-    -- Настройки положения модели в руках по умолчанию
-    CreateClientConVar("async_gamepad_scale", "0.50", true, false, "Масштаб модели пульта")
-    CreateClientConVar("async_gamepad_pos_x", "20", true, false, "Смещение вперед/назад")
-    CreateClientConVar("async_gamepad_pos_y", "3", true, false, "Смещение вправо/влево")
-    CreateClientConVar("async_gamepad_pos_z", "-2", true, false, "Смещение вверх/вниз")
-    CreateClientConVar("async_gamepad_ang_p", "-25", true, false, "Угол тангажа (Pitch)")
-    CreateClientConVar("async_gamepad_ang_y", "-180", true, false, "Угол рыскания (Yaw)")
-    CreateClientConVar("async_gamepad_ang_r", "-180", true, false, "Угол крена (Roll)")
-
-    -- Точная подстройка чистой модели геймпада ровно в руки
-    CreateClientConVar("async_gamepad_screen_x", "0.0", true, false, "Смещение экрана по X")
-    CreateClientConVar("async_gamepad_screen_y", "0.0", true, false, "Смещение экрана по Y")
-    CreateClientConVar("async_gamepad_screen_z", "2.0", true, false, "Смещение экрана по Z")
-    CreateClientConVar("async_gamepad_screen_scale", "0.025", true, false, "Масштаб 3D2D экрана")
 end
 
 SWEP.Weight = 0
 SWEP.AutoSwitchTo = false
 SWEP.AutoSwitchFrom = false
+SWEP.DrawAmmo = false
+SWEP.DrawCrosshair = false
 
 SWEP.Slot = 4
 SWEP.SlotPos = 5
-SWEP.DrawAmmo = false
-SWEP.DrawCrosshair = false
-SWEP.HoldType = "slam"
 
 SWEP.Primary.ClipSize = -1
 SWEP.Primary.DefaultClip = -1
@@ -160,6 +178,11 @@ function SWEP:Reload()
     end
 end
 
+-- Позиция экрана смартфона на модели пульта (аналогично walkie-talkie ScreenPosOffset)
+SWEP.ScreenPosOffset = Vector(3.4, -2.22, 3.57)
+SWEP.ScreenAngleOffset = Angle(-5, -18.5, 91)
+SWEP.ScreenScale = 0.025
+
 if CLIENT then
     local RT_W, RT_H = 512, 256
     local drone_rt = GetRenderTarget("AsyncGamepad_FPV_RT4", RT_W, RT_H, false)
@@ -262,117 +285,23 @@ if CLIENT then
         cam.End3D2D()
     end
 
-    function SWEP:ViewModelDrawn(vm)
-        if not IsValid(vm) then return end
+    -- Отрисовка 3D2D экрана через DrawWorldModel2 как walkie-talkie и tablet
+    function SWEP:AddDrawModel(WorldModel)
+        if not IsValid(WorldModel) then return end
 
         local owner = self:GetOwner()
         if not IsValid(owner) then return end
 
-        local scale = GetConVar("async_gamepad_scale"):GetFloat()
-        local offX = GetConVar("async_gamepad_pos_x"):GetFloat()
-        local offY = GetConVar("async_gamepad_pos_y"):GetFloat()
-        local offZ = GetConVar("async_gamepad_pos_z"):GetFloat()
-        local angP = GetConVar("async_gamepad_ang_p"):GetFloat()
-        local angY = GetConVar("async_gamepad_ang_y"):GetFloat()
-        local angR = GetConVar("async_gamepad_ang_r"):GetFloat()
+        local activeDrone = owner:GetNWEntity("KVN_ActiveDrone")
 
-        local scrX = GetConVar("async_gamepad_screen_x"):GetFloat()
-        local scrY = GetConVar("async_gamepad_screen_y"):GetFloat()
-        local scrZ = GetConVar("async_gamepad_screen_z"):GetFloat()
-        local scrScale = GetConVar("async_gamepad_screen_scale"):GetFloat()
+        local boneid = owner:LookupBone("ValveBiped.Bip01_R_Hand")
+        if not boneid then return end
 
-        if not IsValid(self.CSModel) then
-            self.CSModel = ClientsideModel("models/weapons/w_async_gamepad.mdl", RENDERGROUP_VIEWMODEL)
-            if IsValid(self.CSModel) then
-                self.CSModel:SetNoDraw(true)
-            end
-        end
+        local matrix = owner:GetBoneMatrix(boneid)
+        if not matrix then return end
 
-        if IsValid(self.CSModel) then
-            local pos, ang = vm:GetPos(), vm:GetAngles()
-            local boneHand = vm:LookupBone("ValveBiped.Bip01_R_Hand")
-            if boneHand then
-                local boneMatrix = vm:GetBoneMatrix(boneHand)
-                if boneMatrix then
-                    pos = boneMatrix:GetTranslation()
-                    ang = boneMatrix:GetAngles()
-                end
-            end
+        local screenPos, screenAng = LocalToWorld(self.ScreenPosOffset, self.ScreenAngleOffset, matrix:GetTranslation(), matrix:GetAngles())
 
-            pos = pos + ang:Forward() * offX + ang:Right() * offY + ang:Up() * offZ
-            ang:RotateAroundAxis(ang:Up(), angY)
-            ang:RotateAroundAxis(ang:Right(), angP)
-            ang:RotateAroundAxis(ang:Forward(), angR)
-
-            self.CSModel:SetModelScale(scale, 0)
-            self.CSModel:SetPos(pos)
-            self.CSModel:SetAngles(ang)
-            self.CSModel:DrawModel()
-
-            local activeDrone = owner:GetNWEntity("KVN_ActiveDrone")
-
-            local screenPos = pos + ang:Forward() * scrX + ang:Right() * scrY + ang:Up() * scrZ
-            local screenAng = Angle(ang.p, ang.y, ang.r)
-            screenAng:RotateAroundAxis(screenAng:Up(), 90)
-            screenAng:RotateAroundAxis(screenAng:Forward(), 90)
-
-            DrawSmartphoneScreen(screenPos, screenAng, scrScale, activeDrone, self)
-        end
-    end
-
-    function SWEP:DrawWorldModel()
-        local owner = self:GetOwner()
-
-        -- В виде от первого лица скрываем WorldModel, так как работает ViewModelDrawn
-        if IsValid(owner) and owner == LocalPlayer() and not owner:ShouldDrawLocalPlayer() then
-            return
-        end
-
-        local scale = GetConVar("async_gamepad_scale"):GetFloat()
-        local offX = GetConVar("async_gamepad_pos_x"):GetFloat()
-        local offY = GetConVar("async_gamepad_pos_y"):GetFloat()
-        local offZ = GetConVar("async_gamepad_pos_z"):GetFloat()
-        local angP = GetConVar("async_gamepad_ang_p"):GetFloat()
-        local angY = GetConVar("async_gamepad_ang_y"):GetFloat()
-        local angR = GetConVar("async_gamepad_ang_r"):GetFloat()
-
-        local scrX = GetConVar("async_gamepad_screen_x"):GetFloat()
-        local scrY = GetConVar("async_gamepad_screen_y"):GetFloat()
-        local scrZ = GetConVar("async_gamepad_screen_z"):GetFloat()
-        local scrScale = GetConVar("async_gamepad_screen_scale"):GetFloat()
-
-        local pos, ang
-
-        if IsValid(owner) then
-            local boneHand = owner:LookupBone("ValveBiped.Bip01_R_Hand")
-            if boneHand then
-                pos, ang = owner:GetBonePosition(boneHand)
-            else
-                pos = owner:GetPos()
-                ang = owner:GetAngles()
-            end
-
-            pos = pos + ang:Forward() * offX + ang:Right() * offY + ang:Up() * offZ
-            ang:RotateAroundAxis(ang:Up(), angY)
-            ang:RotateAroundAxis(ang:Right(), angP)
-            ang:RotateAroundAxis(ang:Forward(), angR)
-        else
-            pos = self:GetPos()
-            ang = self:GetAngles()
-        end
-
-        self:SetModelScale(scale, 0)
-        self:SetRenderOrigin(pos)
-        self:SetRenderAngles(ang)
-        self:DrawModel()
-
-        local activeDrone = IsValid(owner) and owner:GetNWEntity("KVN_ActiveDrone") or nil
-
-        local screenPos = pos + ang:Forward() * scrX + ang:Right() * scrY + ang:Up() * scrZ
-        local screenAng = Angle(ang.p, ang.y, ang.r)
-        screenAng:RotateAroundAxis(screenAng:Up(), 90)
-        screenAng:RotateAroundAxis(screenAng:Forward(), 90)
-
-        DrawSmartphoneScreen(screenPos, screenAng, scrScale, activeDrone, self)
+        DrawSmartphoneScreen(screenPos, screenAng, self.ScreenScale, activeDrone, self)
     end
 end
