@@ -44,10 +44,10 @@ ENT.ForceAngleDampingMultiplier = 1
 ENT.EngineSounds = {
 	{
 		sound = "sw/kvn/kvn_idle.ogg",
-		Pitch = 110,
+		Pitch = 150,
 		PitchMin = 0,
 		PitchMax = 255,
-		PitchMul = 15,
+		PitchMul = 100,
 		Volume = 1,
 		VolumeMin = 0,
 		VolumeMax = 1,

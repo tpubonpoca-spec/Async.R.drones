@@ -36,12 +36,12 @@ local DROP_MAT    = Material("models/sw/avia/mavic2/drop", "mips smooth")
 local clr_white   = Color(255, 255, 255, 255)
 
 net.Receive("Mavic_Beep", function()
-    surface.PlaySound("fpv_custom/beep.wav")
+    -- surface.PlaySound("fpv_custom/beep.wav")
 end)
 
 hook.Add("PlayerButtonDown", "Mavic_BeepTest", function(ply, btn)
     if btn == KEY_F1 then
-        surface.PlaySound("fpv_custom/beep.wav")
+        -- surface.PlaySound("fpv_custom/beep.wav")
     end
 end)
 

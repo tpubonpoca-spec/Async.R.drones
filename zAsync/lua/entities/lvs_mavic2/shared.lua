@@ -16,10 +16,10 @@ ENT.Mass = 140
 ENT.EngineSounds = {
 	{
 		sound = "sw/kvn/kvn_idle.ogg",
-		Pitch = 105,
+		Pitch = 140,
 		PitchMin = 0,
 		PitchMax = 255,
-		PitchMul = 15,
+		PitchMul = 100,
 		Volume = 1,
 		VolumeMin = 0,
 		VolumeMax = 1,

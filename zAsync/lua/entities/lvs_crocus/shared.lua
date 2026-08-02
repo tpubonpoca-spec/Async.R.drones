@@ -16,10 +16,10 @@ ENT.Mass = 120
 ENT.EngineSounds = {
 	{
 		sound = "fpv_custom/crocus_idle.ogg",
-		Pitch = 110,
+		Pitch = 150,
 		PitchMin = 0,
 		PitchMax = 255,
-		PitchMul = 15,
+		PitchMul = 100,
 		Volume = 1,
 		VolumeMin = 0,
 		VolumeMax = 1,
