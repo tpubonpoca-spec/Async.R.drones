@@ -38,10 +38,10 @@ if CLIENT then
     CreateClientConVar("async_gamepad_ang_y", "-180", true, false, "Угол рыскания (Yaw)")
     CreateClientConVar("async_gamepad_ang_r", "-180", true, false, "Угол крена (Roll)")
 
-    -- Точная подстройка экрана смартфона на модели (увеличенный размер и ровный угол)
-    CreateClientConVar("async_gamepad_screen_x", "0", true, false, "Смещение экрана по X")
-    CreateClientConVar("async_gamepad_screen_y", "1.2", true, false, "Смещение экрана по Y")
-    CreateClientConVar("async_gamepad_screen_z", "5.6", true, false, "Смещение экрана по Z")
+    -- Точная подстройка экрана смартфона на модели BESTheldinarms
+    CreateClientConVar("async_gamepad_screen_x", "-16.1", true, false, "Смещение экрана по X")
+    CreateClientConVar("async_gamepad_screen_y", "-0.5", true, false, "Смещение экрана по Y")
+    CreateClientConVar("async_gamepad_screen_z", "1.5", true, false, "Смещение экрана по Z")
     CreateClientConVar("async_gamepad_screen_scale", "0.026", true, false, "Масштаб 3D2D экрана")
 end
 
