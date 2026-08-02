@@ -1,7 +1,7 @@
 --[[
     Фикс FPV дронов (zAsync + Crocus Remastered + Mavic 2 Remastered)
-    - Полная защита оператора от взрыва собственного дрона на расстоянии.
-    - Совместимость со всеми типами LVS / KVN / Crocus / Mavic 2 дронов.
+    - Гарантированная защита оператора на земле от урона детонации дрона на расстоянии (>150u).
+    - Моментальный забор игрока из кресла при получении фатального урона дроном.
 --]]
 
 local function GetLVSVehicle(ply)
@@ -35,10 +35,6 @@ local function GetLVSVehicle(ply)
         end
     end
 
-    for _, e in ipairs(ents.FindByClass("lvs_*")) do
-        if e.GetDriver and e:GetDriver() == ply then return e end
-    end
-
     return nil
 end
 
@@ -59,7 +55,7 @@ if SERVER then
         end)
     end)
 
-    -- 100% Защита оператора от взрыва собственного дрона на расстоянии
+    -- Абсолютная защита оператора от дистанционного взрыва собственного дрона
     hook.Add("EntityTakeDamage", "Async_LVS_ProtectRemoteOperatorFromExplosion", function(target, dmginfo)
         if not IsValid(target) or not target:IsPlayer() then return end
 
@@ -70,7 +66,7 @@ if SERVER then
         local isLVSDrone = drone.LVSUAV or drone.IsDrone or drone.IsCrocusKamikaze or drone.IsKVNDrone or cls:find("crocus") or cls:find("kvn") or cls:find("drone") or cls:find("uav") or cls:find("mavic")
 
         if isLVSDrone then
-            local operatorPos = target._LVSGroundPos or target.CrocusGroundPos or target.LVSGroundPos
+            local groundPos = target._LVSGroundPos
             local explosionPos = dmginfo:GetReportedPosition()
             if not explosionPos or explosionPos == vector_origin then
                 explosionPos = dmginfo:GetDamagePosition()
@@ -79,19 +75,26 @@ if SERVER then
                 explosionPos = drone:GetPos()
             end
 
-            -- Если оператор находился дальше 150 юнитов от места взрыва — отменяем урон
-            if operatorPos and operatorPos:Distance(explosionPos) > 150 then
+            -- Если оператор стопорится на земле за 150u от детонации — урон отменяется, а игрок возвращается на землю
+            if groundPos and groundPos:Distance(explosionPos) > 150 then
                 dmginfo:SetDamage(0)
                 dmginfo:ScaleDamage(0)
+                if target:InVehicle() then
+                    target:ExitVehicle()
+                    target:SetPos(groundPos)
+                end
                 return true
             end
 
-            -- Если урон нанесён собственным дроном — отменяем урон
             local attacker = dmginfo:GetAttacker()
             local inflictor = dmginfo:GetInflictor()
             if attacker == drone or inflictor == drone or attacker == target or inflictor == target then
                 dmginfo:SetDamage(0)
                 dmginfo:ScaleDamage(0)
+                if target:InVehicle() and groundPos then
+                    target:ExitVehicle()
+                    target:SetPos(groundPos)
+                end
                 return true
             end
         end

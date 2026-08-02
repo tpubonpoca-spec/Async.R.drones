@@ -1,7 +1,9 @@
 --[[
-    Серверный спавнер дронов (zAsync + Crocus + Mavic 2 + KVN)
-    - Автоматический пуск двигателя строго через 5.4с после BLHeli ESC звука.
-    - Блокировка ручного запуска двигателя на R.
+    Серверный модуль FPV-дронов (zAsync)
+    - Игрок надежно возвращается на наземную позицию _LVSGroundPos ПЕРЕД детонацией.
+    - Взрыв дрона на расстоянии (>150u) наносит 0 урона оператору.
+    - Стартовые звуки проигрываются ОТ ДРОНА (drone:EmitSound), а не от игрока.
+    - Полностью убраны технические звуки-заглушки (buttons/button10.wav).
 --]]
 
 if not SERVER then return end
@@ -26,6 +28,27 @@ local ASYNC_DRONE_CLASSES = {
 local ActiveDrones = {}
 local SpawnCooldowns = {}
 
+local function SafeReturnOperatorToGround(ply, drone)
+    if not IsValid(ply) then return end
+
+    local groundPos = ply._LVSGroundPos
+    if ply:InVehicle() then
+        ply:ExitVehicle()
+    end
+
+    if groundPos then
+        ply:SetPos(groundPos)
+    end
+
+    ply:SetNWEntity("KVN_ActiveDrone", NULL)
+    ply:SetNWEntity("LVS_Vehicle", NULL)
+
+    if IsValid(drone) then
+        drone:StopSound("zasync/vkluchenie.mp3")
+        drone:StopSound("zasync/esc_startup.mp3")
+    end
+end
+
 hook.Add("PlayerDeath", "Async_OperatorDeathCleanup", function(ply)
     local sid = ply:SteamID()
     if ActiveDrones[sid] and IsValid(ActiveDrones[sid]) then
@@ -44,6 +67,19 @@ hook.Add("PlayerDisconnected", "Async_CleanupOnDisconnect", function(ply)
     SpawnCooldowns[sid] = nil
 end)
 
+-- Перехват столкновения/урона дрона ДО детонации для спасения оператора
+hook.Add("EntityTakeDamage", "Async_EjectOperatorBeforeDroneExplodes", function(ent, dmginfo)
+    if not IsValid(ent) then return end
+    local cls = ent:GetClass():lower()
+    local isDrone = ASYNC_DRONE_CLASSES[cls] or ent.LVSUAV or cls:find("crocus") or cls:find("mavic") or cls:find("kvn")
+    if not isDrone then return end
+
+    local owner = ent._AsyncOperator
+    if IsValid(owner) and (ent:GetHP() <= dmginfo:GetDamage() or dmginfo:IsExplosiveDamage()) then
+        SafeReturnOperatorToGround(owner, ent)
+    end
+end)
+
 hook.Add("EntityRemoved", "Async_CleanupDrone", function(ent)
     if not IsValid(ent) then return end
     local cls = ent:GetClass():lower()
@@ -55,11 +91,7 @@ hook.Add("EntityRemoved", "Async_CleanupDrone", function(ent)
             ActiveDrones[sid] = nil
             local owner = ent._AsyncOperator
             if IsValid(owner) then
-                if owner:InVehicle() and owner._LVSGroundPos then
-                    owner:ExitVehicle()
-                    owner:SetPos(owner._LVSGroundPos)
-                end
-                owner:SetNWEntity("KVN_ActiveDrone", NULL)
+                SafeReturnOperatorToGround(owner, ent)
                 net.Start("Async_DroneStatus")
                     net.WriteUInt(0, 2)
                 net.Send(owner)
@@ -69,7 +101,6 @@ hook.Add("EntityRemoved", "Async_CleanupDrone", function(ent)
     end
 end)
 
--- Запрет ручного запуска/остановки двигателя по кнопке R
 hook.Add("LVS:CanToggleEngine", "Async_ProhibitManualEngineToggle", function(drone, ply)
     if IsValid(drone) and (drone._AsyncSpawned or ASYNC_DRONE_CLASSES[drone:GetClass():lower()]) then
         return false
@@ -79,19 +110,12 @@ end)
 net.Receive("Async_DisconnectDrone", function(len, ply)
     if not IsValid(ply) then return end
 
-    local groundPos = ply._LVSGroundPos
-    if ply:InVehicle() then
-        ply:ExitVehicle()
-        if groundPos then ply:SetPos(groundPos) end
-    end
-
     local activeDrone = ply:GetNWEntity("KVN_ActiveDrone")
+    SafeReturnOperatorToGround(ply, activeDrone)
+
     if IsValid(activeDrone) then
         activeDrone:Remove()
     end
-
-    ply:SetNWEntity("KVN_ActiveDrone", NULL)
-    ply:EmitSound("buttons/button10.wav", 75, 100)
 end)
 
 net.Receive("Async_SpawnDrone", function(len, ply)
@@ -161,16 +185,15 @@ net.Receive("Async_SpawnDrone", function(len, ply)
         end
     end)
 
-    -- Воспроизведение звука BLHeli
-    ply:EmitSound("zasync/vkluchenie.mp3", 75, 100, 1)
+    -- ЗВУКИ ИЗДАЮТСЯ ИМЕННО ОТ ДРОНА (drone:EmitSound) И ПРЕКРАЩАЮТСЯ ПРИ ВЫХОДЕ
+    drone:EmitSound("zasync/vkluchenie.mp3", 85, 100, 1)
 
     timer.Simple(0.3, function()
-        if IsValid(ply) then
-            ply:EmitSound("zasync/esc_startup.mp3", 75, 100, 1)
+        if IsValid(drone) then
+            drone:EmitSound("zasync/esc_startup.mp3", 85, 100, 1)
         end
     end)
 
-    -- АВТОМАТИЧЕСКИЙ ЗАПУСК ДВИГАТЕЛЯ ПОСЛЕ КД 5.4 СЕКУНДЫ
     timer.Simple(5.4, function()
         if IsValid(drone) and IsValid(ply) and ply:GetNWEntity("KVN_ActiveDrone") == drone then
             if drone.SetEngineUser then drone:SetEngineUser(ply) end
