@@ -261,9 +261,72 @@ if CLIENT then
         cam.End3D2D()
     end
 
+    function SWEP:ViewModelDrawn(vm)
+        if not IsValid(vm) then return end
+
+        local owner = self:GetOwner()
+        if not IsValid(owner) then return end
+
+        local scale = GetConVar("async_gamepad_scale"):GetFloat()
+        local offX = GetConVar("async_gamepad_pos_x"):GetFloat()
+        local offY = GetConVar("async_gamepad_pos_y"):GetFloat()
+        local offZ = GetConVar("async_gamepad_pos_z"):GetFloat()
+        local angP = GetConVar("async_gamepad_ang_p"):GetFloat()
+        local angY = GetConVar("async_gamepad_ang_y"):GetFloat()
+        local angR = GetConVar("async_gamepad_ang_r"):GetFloat()
+
+        local scrX = GetConVar("async_gamepad_screen_x"):GetFloat()
+        local scrY = GetConVar("async_gamepad_screen_y"):GetFloat()
+        local scrZ = GetConVar("async_gamepad_screen_z"):GetFloat()
+        local scrScale = GetConVar("async_gamepad_screen_scale"):GetFloat()
+
+        if not IsValid(self.CSModel) then
+            self.CSModel = ClientsideModel("models/weapons/w_async_gamepad.mdl", RENDERGROUP_VIEWMODEL)
+            if IsValid(self.CSModel) then
+                self.CSModel:SetNoDraw(true)
+            end
+        end
+
+        if IsValid(self.CSModel) then
+            local pos, ang = vm:GetPos(), vm:GetAngles()
+            local boneHand = vm:LookupBone("ValveBiped.Bip01_R_Hand")
+            if boneHand then
+                local boneMatrix = vm:GetBoneMatrix(boneHand)
+                if boneMatrix then
+                    pos = boneMatrix:GetTranslation()
+                    ang = boneMatrix:GetAngles()
+                end
+            end
+
+            pos = pos + ang:Forward() * offX + ang:Right() * offY + ang:Up() * offZ
+            ang:RotateAroundAxis(ang:Up(), angY)
+            ang:RotateAroundAxis(ang:Right(), angP)
+            ang:RotateAroundAxis(ang:Forward(), angR)
+
+            self.CSModel:SetModelScale(scale, 0)
+            self.CSModel:SetPos(pos)
+            self.CSModel:SetAngles(ang)
+            self.CSModel:DrawModel()
+
+            local activeDrone = owner:GetNWEntity("KVN_ActiveDrone")
+
+            local screenPos = pos + ang:Forward() * scrX + ang:Right() * scrY + ang:Up() * scrZ
+            local screenAng = Angle(ang.p, ang.y, ang.r)
+            screenAng:RotateAroundAxis(screenAng:Up(), 90)
+            screenAng:RotateAroundAxis(screenAng:Forward(), 90)
+
+            DrawSmartphoneScreen(screenPos, screenAng, scrScale, activeDrone, self)
+        end
+    end
+
     function SWEP:DrawWorldModel()
         local owner = self:GetOwner()
-        
+
+        -- В виде от первого лица скрываем WorldModel, так как работает ViewModelDrawn
+        if IsValid(owner) and owner == LocalPlayer() and not owner:ShouldDrawLocalPlayer() then
+            return
+        end
+
         local scale = GetConVar("async_gamepad_scale"):GetFloat()
         local offX = GetConVar("async_gamepad_pos_x"):GetFloat()
         local offY = GetConVar("async_gamepad_pos_y"):GetFloat()
@@ -304,7 +367,6 @@ if CLIENT then
 
         local activeDrone = IsValid(owner) and owner:GetNWEntity("KVN_ActiveDrone") or nil
 
-        -- Отрисовка 3D2D экрана смартфона ровно по плоскости стекла
         local screenPos = pos + ang:Forward() * scrX + ang:Right() * scrY + ang:Up() * scrZ
         local screenAng = Angle(ang.p, ang.y, ang.r)
         screenAng:RotateAroundAxis(screenAng:Up(), 90)
