@@ -41,7 +41,7 @@ local DRONES = {
 }
 
 -- BIOS / BSOD Палитра
-local BIOS_BG = Color(0, 0, 128, 245)      # Классический синий BIOS / BSOD
+local BIOS_BG = Color(0, 0, 128, 245)      -- Классический синий BIOS / BSOD
 local BIOS_PANEL = Color(0, 0, 96, 250)
 local BIOS_BORDER = Color(255, 255, 255, 255)
 local BIOS_WHITE = Color(255, 255, 255, 255)
