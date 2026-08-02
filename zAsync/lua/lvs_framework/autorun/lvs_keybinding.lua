@@ -86,7 +86,7 @@ hook.Add( "LVS:Initialize", "!!11lvs_default_keys", function()
 			name = "ENGINE",
 			category = "Misc",
 			name_menu = "Toggle Engine",
-			default = "+reload",
+			default = KEY_PAUSE,
 			cmd = "lvs_startengine"
 		},
 		{
