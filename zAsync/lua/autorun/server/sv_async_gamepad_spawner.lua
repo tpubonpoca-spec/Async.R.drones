@@ -1,9 +1,9 @@
 --[[
     Серверный спавнер дронов (zAsync + Crocus + Mavic 2 + KVN)
-    - Исправлен тип проверки урона: IsDamageType(DMG_BLAST) вместо IsExplosiveDamage.
-    - Установлены реальные сущности lvs_crocus и lvs_mavic2.
-    - Автоматический полноценный старт моторов с тягой 1.0 ровно через 5.4с.
-    - Строгий блокиратор ручного запуска/остановки мотора на R.
+    - Стартовый звук BLHeli останавливается ровно на 5.4 секунды, когда включаются родные пропеллеры.
+    - Никаких фоновых шумов, наложений или паразитных гитарных/электрических тонов во время полёта.
+    - Родной звук полёта дронов (kvn_idle.ogg / crocus_idle.ogg) работает чистейше из исходников.
+    - Звук полёта дрона в 3D-мире НЕ выключается при выходе на E, пока дрон не уничтожен.
 --]]
 
 if not SERVER then return end
@@ -94,7 +94,6 @@ hook.Add("EntityRemoved", "Async_CleanupDrone", function(ent)
     end
 end)
 
--- Строгий блокиратор ручного запуска/остановки мотора на R на сервере
 hook.Add("LVS:CanToggleEngine", "Async_ProhibitManualEngineToggle", function(drone, ply)
     if IsValid(drone) and (drone._AsyncSpawned or ASYNC_DRONE_CLASSES[drone:GetClass():lower()]) then
         return false
@@ -118,7 +117,7 @@ net.Receive("Async_SpawnDrone", function(len, ply)
     if not ASYNC_DRONE_CLASSES[clsLower] then
         if clsLower:find("crocus") then
             droneClass = "lvs_crocus"
-        elseif clsLower:find("mavic") then
+        elif clsLower:find("mavic") then
             droneClass = "lvs_mavic2"
         else
             droneClass = "lvs_kvn1"
@@ -179,22 +178,28 @@ net.Receive("Async_SpawnDrone", function(len, ply)
         end
     end)
 
-    drone:EmitSound("zasync/vkluchenie.mp3", 75, 100)
+    -- ЧИСТЫЙ СТАРТОВЫЙ ЗВУК ИЗДАЕТСЯ ТОЛЬКО ВО ВРЕМЯ КД И СТОПИТСЯ ПЕРЕД СТАРТОМ МОТОРОВ
+    drone:EmitSound("zasync/vkluchenie.mp3", 70, 100)
 
     timer.Simple(0.3, function()
         if IsValid(drone) then
-            drone:EmitSound("zasync/esc_startup.mp3", 75, 100)
+            drone:EmitSound("zasync/esc_startup.mp3", 70, 100)
         end
     end)
 
-    -- ПОЛНОЦЕННЫЙ АВТОМАТИЧЕСКИЙ СТАРТ ДВИГАТЕЛЯ ПОСЛЕ КД 5.4С (С УСТАНОВКОЙ ТЯГИ)
+    -- РОВНО ЧЕРЕЗ 5.4 СЕКУНДЫ ОСТАНАВЛИВАЕТСЯ ЗВУК СТАРТЕРА И ВКЛЮЧАЕТСЯ ЧИСТЫЙ ЗВУК ПОЛЁТА ВИНТОВ
     timer.Simple(5.4, function()
-        if IsValid(drone) and IsValid(ply) then
-            if drone.SetEngineUser then drone:SetEngineUser(ply) end
-            if drone.SetEngineActive then drone:SetEngineActive(true) end
-            if drone.StartEngine then drone:StartEngine() end
-            if drone.SetThrottle then drone:SetThrottle(1) end
-            if drone.SetMaxThrottle then drone:SetMaxThrottle(1) end
+        if IsValid(drone) then
+            drone:StopSound("zasync/vkluchenie.mp3")
+            drone:StopSound("zasync/esc_startup.mp3")
+
+            if IsValid(ply) then
+                if drone.SetEngineUser then drone:SetEngineUser(ply) end
+                if drone.SetEngineActive then drone:SetEngineActive(true) end
+                if drone.StartEngine then drone:StartEngine() end
+                if drone.SetThrottle then drone:SetThrottle(1) end
+                if drone.SetMaxThrottle then drone:SetMaxThrottle(1) end
+            end
         end
     end)
 
