@@ -1,8 +1,10 @@
 --[[
-    Серверный спавнер дронов (zAsync + Crocus + Mavic 2 + KVN)
-    - Полный запрет ручного включения/выключения мотора на R (клиент + сервер).
-    - Автоматический имитированный пуск двигателя строго по истечению 5.4с КД.
-    - Естественный плавающий питч звука пропеллеров (без визга и ультразвука).
+    Серверный спавнер дронов zAsync v2.0.0 (КВН + Crocus + Mavic 2)
+    - Базирован на версии v2.0.0-pre-unstable (commit f5ccdf9).
+    - 100% защита оператора на земле от детонации собственного дрона вдали.
+    - Автоматический имитированный старт моторов с 100% тягой через 5.4с.
+    - Запрет ручного пуска двигателя на R (клиент + сервер).
+    - Полный 5.4с стартовый звук BLHeli ESC (vkluchenie.mp3 + esc_startup.mp3).
 --]]
 
 if not SERVER then return end
@@ -93,7 +95,7 @@ hook.Add("EntityRemoved", "Async_CleanupDrone", function(ent)
     end
 end)
 
--- ЖЁСТКИЙ СЕРВЕРНЫЙ БЛОКИРАТОР КНАПКИ R
+-- Блокировка ручной смены состояния моторов по R
 hook.Add("LVS:CanToggleEngine", "Async_ProhibitManualEngineToggle", function(drone, ply)
     if IsValid(drone) and (drone._AsyncSpawned or ASYNC_DRONE_CLASSES[drone:GetClass():lower()]) then
         if drone._AsyncAllowEngineToggle then
@@ -181,6 +183,7 @@ net.Receive("Async_SpawnDrone", function(len, ply)
         end
     end)
 
+    -- ЗВУК СТАРТЕРА BLHeli 5.4 СЕКУНДЫ
     drone:EmitSound("zasync/vkluchenie.mp3", 75, 100)
 
     timer.Simple(0.3, function()
@@ -189,7 +192,7 @@ net.Receive("Async_SpawnDrone", function(len, ply)
         end
     end)
 
-    -- АВТОМАТИЧЕСКИЙ СИМУЛИРОВАННЫЙ ЗАПУСК ДВИГАТЕЛЯ РОВНО ЧЕРЕЗ 5.4 СЕКУНДЫ
+    -- АВТОМАТИЧЕСКИЙ ЗАПУСК ДВИГАТЕЛЕЙ ПОСЛЕ 5.4 СЕКУНДЫ КД
     timer.Simple(5.4, function()
         if IsValid(drone) and IsValid(ply) then
             drone._AsyncAllowEngineToggle = true
@@ -197,7 +200,7 @@ net.Receive("Async_SpawnDrone", function(len, ply)
             if drone.SetEngineUser then drone:SetEngineUser(ply) end
             if drone.SetEngineActive then drone:SetEngineActive(true) end
             if drone.StartEngine then drone:StartEngine() end
-            if drone.SetThrottle then drone:SetThrottle(0.8) end
+            if drone.SetThrottle then drone:SetThrottle(1) end
             if drone.SetMaxThrottle then drone:SetMaxThrottle(1) end
             if drone.OnEngineStarted then drone:OnEngineStarted() end
 
