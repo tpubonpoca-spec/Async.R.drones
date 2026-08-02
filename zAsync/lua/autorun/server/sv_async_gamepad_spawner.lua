@@ -1,7 +1,9 @@
 --[[
-    Серверный модуль FPV-дронов (zAsync)
-    - Исправлена синтаксическая ошибка GLua в ветвлении классов.
-    - Регистрируются все сетевые сообщения для клиента.
+    Серверный спавнер дронов (zAsync + Crocus + Mavic 2 + KVN)
+    - Исправлен тип проверки урона: IsDamageType(DMG_BLAST) вместо IsExplosiveDamage.
+    - Установлены реальные сущности lvs_crocus и lvs_mavic2.
+    - Автоматический полноценный старт моторов с тягой 1.0 ровно через 5.4с.
+    - Строгий блокиратор ручного запуска/остановки мотора на R.
 --]]
 
 if not SERVER then return end
@@ -14,12 +16,11 @@ local ASYNC_DRONE_CLASSES = {
     ["lvs_kvn1"]        = true,
     ["lvs_kvn2"]        = true,
     ["lvs_kvn3"]        = true,
+    ["lvs_crocus"]      = true,
     ["sw_crocus"]       = true,
     ["sw_crocus_pg7"]   = true,
-    ["sw_crocus_tbg7"]  = true,
-    ["sw_mavic_2"]      = true,
-    ["sw_mavic2"]       = true,
     ["lvs_mavic2"]      = true,
+    ["sw_mavic_2"]      = true,
     ["mavic2"]          = true,
 }
 
@@ -67,7 +68,7 @@ hook.Add("EntityTakeDamage", "Async_EjectOperatorBeforeDroneExplodes", function(
     if not isDrone then return end
 
     local owner = ent._AsyncOperator
-    if IsValid(owner) and (ent:GetHP() <= dmginfo:GetDamage() or dmginfo:IsExplosiveDamage()) then
+    if IsValid(owner) and (ent:GetHP() <= dmginfo:GetDamage() or dmginfo:IsDamageType(DMG_BLAST)) then
         SafeReturnOperatorToGround(owner, ent)
     end
 end)
@@ -93,6 +94,7 @@ hook.Add("EntityRemoved", "Async_CleanupDrone", function(ent)
     end
 end)
 
+-- Строгий блокиратор ручного запуска/остановки мотора на R на сервере
 hook.Add("LVS:CanToggleEngine", "Async_ProhibitManualEngineToggle", function(drone, ply)
     if IsValid(drone) and (drone._AsyncSpawned or ASYNC_DRONE_CLASSES[drone:GetClass():lower()]) then
         return false
@@ -115,9 +117,9 @@ net.Receive("Async_SpawnDrone", function(len, ply)
     local clsLower = droneClass:lower()
     if not ASYNC_DRONE_CLASSES[clsLower] then
         if clsLower:find("crocus") then
-            droneClass = "sw_crocus_pg7"
+            droneClass = "lvs_crocus"
         elseif clsLower:find("mavic") then
-            droneClass = "sw_mavic_2"
+            droneClass = "lvs_mavic2"
         else
             droneClass = "lvs_kvn1"
         end
@@ -185,11 +187,14 @@ net.Receive("Async_SpawnDrone", function(len, ply)
         end
     end)
 
+    -- ПОЛНОЦЕННЫЙ АВТОМАТИЧЕСКИЙ СТАРТ ДВИГАТЕЛЯ ПОСЛЕ КД 5.4С (С УСТАНОВКОЙ ТЯГИ)
     timer.Simple(5.4, function()
         if IsValid(drone) and IsValid(ply) then
             if drone.SetEngineUser then drone:SetEngineUser(ply) end
             if drone.SetEngineActive then drone:SetEngineActive(true) end
             if drone.StartEngine then drone:StartEngine() end
+            if drone.SetThrottle then drone:SetThrottle(1) end
+            if drone.SetMaxThrottle then drone:SetMaxThrottle(1) end
         end
     end)
 
