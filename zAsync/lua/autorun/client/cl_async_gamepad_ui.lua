@@ -1,9 +1,10 @@
 --[[
-    Интерфейс ОС "ЗАРЯ" v3.12 (Минобороны РФ / АО "ОПК")
+    Интерфейс ОС ЗАРЯ v3.12 (Минобороны РФ / АО ОПК)
     Файл: lua/autorun/client/cl_async_gamepad_ui.lua
 
-    - Русский военный интерфейс ОС "Заря" по клавише F6.
-    - Полная отрисовка FPV камеры и HUD в стиле ОС "Заря".
+    - Русский военный интерфейс ОС Заря по клавише F6.
+    - Перехват CalcView для показа FPV камеры оператору, находящемуся в своём теле на земле.
+    - Клавиша E — экстренное отключение связи с дроном.
     - Полноэкранный экран самодиагностики BLHeli (5.4с) с физической блокировкой управления.
 --]]
 
@@ -40,7 +41,7 @@ local DRONES = {
     },
 }
 
--- Цветовая палитра ОС "ЗАРЯ"
+-- Цветовая палитра ОС ЗАРЯ
 local ZARYA_BG = Color(24, 28, 34, 250)
 local ZARYA_TITLE = Color(36, 44, 54, 255)
 local ZARYA_PANEL = Color(30, 36, 46, 245)
@@ -57,7 +58,7 @@ surface.CreateFont("Zarya_Text", { font = "DejaVu Sans Mono", size = 14, weight 
 surface.CreateFont("Zarya_Small", { font = "DejaVu Sans Mono", size = 12, weight = 400 })
 surface.CreateFont("Zarya_BigTimer", { font = "DejaVu Sans Mono", size = 28, weight = 900 })
 
--- Клавиша F6 переключает окно ОС "ЗАРЯ"
+-- Клавиша F6 переключает окно ОС ЗАРЯ
 hook.Add("PlayerButtonDown", "Async_F6MenuToggle", function(ply, button)
     if button == KEY_F6 then
         ASYNC_UI.ToggleMenu()
@@ -91,12 +92,10 @@ function ASYNC_UI.OpenMenu()
     frame:MakePopup()
 
     frame.Paint = function(s, w, h)
-        -- Главное окно ОС "Заря"
         draw.RoundedBox(0, 0, 0, w, h, ZARYA_BG)
         surface.SetDrawColor(ZARYA_BORDER)
         surface.DrawOutlinedRect(0, 0, w, h, 2)
 
-        -- Заголовок окна ОС "Заря"
         surface.SetDrawColor(ZARYA_TITLE)
         surface.DrawRect(2, 2, w - 4, 34)
         surface.SetDrawColor(ZARYA_GREEN)
@@ -106,7 +105,6 @@ function ASYNC_UI.OpenMenu()
         draw.SimpleText("ТЕРМИНАЛ НСУ-433 [F6]", "Zarya_Small", w - 45, 10, ZARYA_CYAN, TEXT_ALIGN_RIGHT, TEXT_ALIGN_TOP)
     end
 
-    -- Кнопка закрытия окна
     local closeBtn = vgui.Create("DButton", frame)
     closeBtn:SetSize(28, 22)
     closeBtn:SetPos(740 - 32, 6)
@@ -126,7 +124,6 @@ function ASYNC_UI.OpenMenu()
         ASYNC_UI.IsOpen = false
     end
 
-    -- Левый список дронов
     local scroll = vgui.Create("DScrollPanel", frame)
     scroll:SetPos(14, 48)
     scroll:SetSize(330, 426)
@@ -160,7 +157,6 @@ function ASYNC_UI.OpenMenu()
         end
     end
 
-    -- Правая панель спецификации ОС "Заря"
     local rightPanel = vgui.Create("DPanel", frame)
     rightPanel:SetPos(356, 48)
     rightPanel:SetSize(370, 426)
@@ -173,11 +169,8 @@ function ASYNC_UI.OpenMenu()
         if not info then return end
 
         draw.SimpleText("=== СПЕЦИФИКАЦИЯ БПЛА ===", "Zarya_Header", 14, 14, info.color, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
-
         draw.SimpleText("НАИМЕНОВАНИЕ: " .. info.name, "Zarya_Text", 14, 42, ZARYA_TEXT, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
-        draw.SimpleText("ТАКТИЧЕСКИЙ НАЗНАЧЕНИЕ:", "Zarya_Small", 14, 66, ZARYA_MUTED, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
-
-        -- Описание
+        draw.SimpleText("ТАКТИЧЕСКОЕ НАЗНАЧЕНИЕ:", "Zarya_Small", 14, 66, ZARYA_MUTED, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
         draw.SimpleText(info.desc, "Zarya_Small", 14, 84, ZARYA_TEXT, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
 
         surface.SetDrawColor(ZARYA_BORDER)
@@ -187,10 +180,9 @@ function ASYNC_UI.OpenMenu()
         draw.SimpleText("• МАКСИМАЛЬНАЯ СКОРОСТЬ: " .. info.speed, "Zarya_Text", 14, 166, ZARYA_TEXT, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
         draw.SimpleText("• ПОЛЕЗНАЯ НАГРУЗКА:     " .. info.payload, "Zarya_Text", 14, 188, ZARYA_TEXT, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
         draw.SimpleText("• ПОЛЁТНЫЙ КОНТРОЛЛЕР:   BLHeli ESC (5.4с)", "Zarya_Text", 14, 210, ZARYA_AMBER, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
-        draw.SimpleText("• БЕЗОПАСНОСТЬ ОПЕРАТОРА: УЯЗВИМ НА ЗЕМЛЕ", "Zarya_Text", 14, 232, ZARYA_GREEN, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+        draw.SimpleText("• БЕЗОПАСНОСТЬ ОПЕРАТОРА: НАСТОЯЩИЙ ИГРОК НА ЗЕМЛЕ", "Zarya_Text", 14, 232, ZARYA_GREEN, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
     end
 
-    -- Кнопка ЗАПУСК
     local spawnBtn = vgui.Create("DButton", rightPanel)
     spawnBtn:SetSize(342, 44)
     spawnBtn:SetPos(14, 300)
@@ -214,12 +206,11 @@ function ASYNC_UI.OpenMenu()
         ASYNC_UI.IsOpen = false
     end
 
-    -- Кнопка ОТКЛЮЧИТЬ
     local disconnectBtn = vgui.Create("DButton", rightPanel)
     disconnectBtn:SetSize(342, 36)
     disconnectBtn:SetPos(14, 356)
     disconnectBtn:SetFont("Zarya_Text")
-    disconnectBtn:SetText("[ R ] ОТКЛЮЧИТЬ КАНАЛ СВЯЗИ")
+    disconnectBtn:SetText("[ E ] ОТКЛЮЧИТЬ КАНАЛ СВЯЗИ")
     disconnectBtn:SetTextColor(Color(255, 180, 180))
     disconnectBtn.Paint = function(s, w, h)
         local bgCol = s:IsHovered() and Color(160, 40, 40) or Color(90, 30, 30)
@@ -235,9 +226,35 @@ function ASYNC_UI.OpenMenu()
     end
 end
 
--- Клавиша R отключает связь с дроном
-hook.Add("PlayerButtonDown", "Async_RKeyDisconnect", function(ply, button)
-    if button == KEY_R and not vgui.CursorVisible() then
+-- Перехват CalcView для показа FPV камеры настоящему игроку на земле
+hook.Add("CalcView", "Async_FPVOperatorView", function(ply, pos, angles, fov)
+    if not IsValid(ply) or not ply:Alive() then return end
+
+    local activeDrone = ply:GetNWEntity("KVN_ActiveDrone")
+    if not IsValid(activeDrone) then return end
+
+    local camPos = activeDrone:LocalToWorld(Vector(12, 0, 3))
+    local camAng = ply:EyeAngles()
+
+    local camAtt = activeDrone:LookupAttachment("camera")
+    if camAtt and camAtt > 0 then
+        local att = activeDrone:GetAttachment(camAtt)
+        if att and att.Pos and att.Pos ~= vector_origin then
+            camPos = att.Pos
+        end
+    end
+
+    return {
+        origin = camPos,
+        angles = camAng,
+        fov = 85,
+        drawviewer = true,
+    }
+end)
+
+-- Клавиша E отключает связь с дроном
+hook.Add("PlayerButtonDown", "Async_EKeyDisconnect", function(ply, button)
+    if button == KEY_E and not vgui.CursorVisible() then
         local activeDrone = ply:GetNWEntity("KVN_ActiveDrone")
         if IsValid(activeDrone) then
             net.Start("Async_DisconnectDrone")
@@ -246,7 +263,7 @@ hook.Add("PlayerButtonDown", "Async_RKeyDisconnect", function(ply, button)
     end
 end)
 
--- Отрисовка FPV HUD в стиле ОС "ЗАРЯ" v3.12
+-- Отрисовка FPV HUD в стиле ОС ЗАРЯ v3.12
 hook.Add("HUDPaint", "Async_FPVOperatorHUD", function()
     local ply = LocalPlayer()
     if not IsValid(ply) then return end
@@ -260,11 +277,9 @@ hook.Add("HUDPaint", "Async_FPVOperatorHUD", function()
     local lockUntil = activeDrone:GetNWFloat("Async_ControlLockTime", 0)
     local isLocked = ct < lockUntil
 
-    -- 1. Экран самодиагностики BLHeli ESC при старте (5.4 секунды)
     if isLocked then
         local remTime = math.Round(lockUntil - ct, 1)
 
-        -- Полупрозрачная черная подложка терминала
         surface.SetDrawColor(18, 22, 28, 235)
         surface.DrawRect(w * 0.15, h * 0.25, w * 0.7, h * 0.5)
 
@@ -277,25 +292,23 @@ hook.Add("HUDPaint", "Async_FPVOperatorHUD", function()
 
         draw.SimpleText("[+] ПОЛЁТНЫЙ КОНТРОЛЛЕР: BLHeli ESC INITIALIZING...", "Zarya_Text", w * 0.18, h * 0.35, ZARYA_CYAN, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
         draw.SimpleText("[+] КАНАЛ СВЯЗИ: НСУ-433 (КВАРЦ) — ПОДКЛЮЧЕНО", "Zarya_Text", w * 0.18, h * 0.39, ZARYA_GREEN, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
-        draw.SimpleText("[!] ПОЛИТИКА БЕЗОПАСНОСТИ: ОПЕРАТОР НА ЗЕМЛЕ УЯЗВИМ ДЛЯ УРОНА", "Zarya_Text", w * 0.18, h * 0.43, ZARYA_AMBER, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+        draw.SimpleText("[!] ВЫ ФИЗИЧЕСКИ НАХОДИТЕСЬ НА ЗЕМЛЕ И УЯЗВИМЫ ДЛЯ УРОНА", "Zarya_Text", w * 0.18, h * 0.43, ZARYA_AMBER, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
 
         draw.SimpleText("БЛОКИРОВКА УПРАВЛЕНИЯ: " .. string.format("%.1f", remTime) .. " СЕК", "Zarya_BigTimer", w * 0.5, h * 0.54, ZARYA_AMBER, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
         draw.SimpleText("Воспроизведение последовательности звуковых сигналов BLHeli...", "Zarya_Small", w * 0.5, h * 0.65, ZARYA_MUTED, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
     else
-        -- Прицел FPV
         surface.SetDrawColor(0, 230, 118, 200)
         surface.DrawOutlinedRect(w * 0.5 - 12, h * 0.5 - 12, 24, 24, 1)
         surface.DrawLine(w * 0.5 - 4, h * 0.5, w * 0.5 + 4, h * 0.5)
         surface.DrawLine(w * 0.5, h * 0.5 - 4, w * 0.5, h * 0.5 + 4)
     end
 
-    -- Верхняя плашка состояния ОС "ЗАРЯ"
     surface.SetDrawColor(20, 25, 32, 220)
     surface.DrawRect(16, 16, 320, 75)
     surface.SetDrawColor(ZARYA_BORDER)
     surface.DrawOutlinedRect(16, 16, 320, 75, 1)
 
     draw.SimpleText("ОС ЗАРЯ v3.12 | " .. activeDrone:GetClass():upper(), "Zarya_Header", 26, 24, ZARYA_GREEN, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
-    draw.SimpleText("СВЯЗЬ: 100% | ОПЕРАТОР НА ЗЕМЛЕ (УЯЗВИМ)", "Zarya_Small", 26, 44, ZARYA_CYAN, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
-    draw.SimpleText("[R] — Отключить канал | [F6] — Терминал", "Zarya_Small", 26, 62, ZARYA_MUTED, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+    draw.SimpleText("СВЯЗЬ: 100% | НАСТОЯЩИЙ ИГРОК НА ЗЕМЛЕ", "Zarya_Small", 26, 44, ZARYA_CYAN, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+    draw.SimpleText("[E] — Отключить канал | [F6] — Терминал", "Zarya_Small", 26, 62, ZARYA_MUTED, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
 end)
