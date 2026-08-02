@@ -279,3 +279,10 @@ hook.Add("HUDPaint", "Async_FPV_BIOS_HUD", function()
     draw.SimpleText("FPV LINK | " .. base:GetClass():upper(), "BIOS_Font", 18, 14, BIOS_YELLOW, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
     draw.SimpleText("PRESS [E] TO EXIT", "BIOS_Font", 18, 30, BIOS_WHITE, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
 end)
+
+-- Запрет клиенту самостоятельно нажимать R для переключения двигателя
+hook.Add("LVS:CanToggleEngine", "Async_ProhibitManualEngineToggle_CL", function(drone, ply)
+    if IsValid(drone) and drone._AsyncSpawned then
+        return false
+    end
+end)
