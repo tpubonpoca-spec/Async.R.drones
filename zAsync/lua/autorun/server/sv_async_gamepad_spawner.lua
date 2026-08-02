@@ -76,7 +76,7 @@ hook.Add("EntityRemoved", "Async_CleanupDrone", function(ent)
     if not IsValid(ent) then return end
     local cls = ent:GetClass():lower()
     local isDrone = ASYNC_DRONE_CLASSES[cls] or ent.LVSUAV or cls:find("crocus") or cls:find("mavic") or cls:find("kvn")
-    if not isDrone me then return end
+    if not isDrone then return end
 
     for sid, drone in pairs(ActiveDrones) do
         if drone == ent then
