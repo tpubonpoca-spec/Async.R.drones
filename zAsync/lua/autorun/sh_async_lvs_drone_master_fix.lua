@@ -1,6 +1,7 @@
 --[[
-    Фикс FPV дронов для zAsync
-    Файл: lua/autorun/sh_async_lvs_drone_master_fix.lua
+    Фикс FPV дронов (zAsync + Crocus Remastered + Mavic 2 Remastered)
+    - Полная защита оператора от взрыва собственного дрона на расстоянии.
+    - Совместимость со всеми типами LVS / KVN / Crocus / Mavic 2 дронов.
 --]]
 
 local function GetLVSVehicle(ply)
@@ -19,9 +20,6 @@ local function GetLVSVehicle(ply)
     local activeDrone = ply:GetNWEntity("KVN_ActiveDrone")
     if IsValid(activeDrone) then return activeDrone end
 
-    local uav = ply:GetNWEntity("UAV")
-    if IsValid(uav) then return uav end
-
     if ply:InVehicle() then
         local pod = ply:GetVehicle()
         if IsValid(pod) then
@@ -33,18 +31,12 @@ local function GetLVSVehicle(ply)
                     return e
                 end
             end
-
             return pod
         end
     end
 
     for _, e in ipairs(ents.FindByClass("lvs_*")) do
-        if e.GetDriver and e:GetDriver() == ply then
-            return e
-        end
-        if e.GetOperator and e:GetOperator() == ply then
-            return e
-        end
+        if e.GetDriver and e:GetDriver() == ply then return e end
     end
 
     return nil
@@ -53,12 +45,11 @@ end
 if SERVER then
     AddCSLuaFile()
 
-    -- 1. Принудительная передача данных дрона на клиент (TRANSMIT_ALWAYS)
     hook.Add("OnEntityCreated", "Async_LVS_ForceTransmitAlwaysForDrones", function(ent)
         timer.Simple(0, function()
             if IsValid(ent) then
                 local cls = ent:GetClass():lower()
-                local isDrone = ent.LVSUAV or ent.IsDrone or ent.IsCrocusKamikaze or ent.IsKVNDrone or cls:find("crocus") or cls:find("kvn") or cls:find("drone") or cls:find("uav")
+                local isDrone = ent.LVSUAV or ent.IsDrone or ent.IsCrocusKamikaze or ent.IsKVNDrone or cls:find("crocus") or cls:find("kvn") or cls:find("drone") or cls:find("uav") or cls:find("mavic")
                 if isDrone then
                     function ent:UpdateTransmitState()
                         return TRANSMIT_ALWAYS
@@ -68,7 +59,7 @@ if SERVER then
         end)
     end)
 
-    -- 2. Защита оператора от дистанционного взрыва собственного дрона у цели
+    -- 100% Защита оператора от взрыва собственного дрона на расстоянии
     hook.Add("EntityTakeDamage", "Async_LVS_ProtectRemoteOperatorFromExplosion", function(target, dmginfo)
         if not IsValid(target) or not target:IsPlayer() then return end
 
@@ -76,11 +67,10 @@ if SERVER then
         if not IsValid(drone) then return end
 
         local cls = drone:GetClass():lower()
-        local isLVSDrone = drone.LVSUAV or drone.IsDrone or drone.IsCrocusKamikaze or drone.IsKVNDrone or cls:find("crocus") or cls:find("kvn") or cls:find("drone") or cls:find("uav")
+        local isLVSDrone = drone.LVSUAV or drone.IsDrone or drone.IsCrocusKamikaze or drone.IsKVNDrone or cls:find("crocus") or cls:find("kvn") or cls:find("drone") or cls:find("uav") or cls:find("mavic")
 
         if isLVSDrone then
-            -- Определение места взрыва и места оператора
-            local operatorPos = target.CrocusGroundPos or target.LVSGroundPos or target:GetPos()
+            local operatorPos = target._LVSGroundPos or target.CrocusGroundPos or target.LVSGroundPos
             local explosionPos = dmginfo:GetReportedPosition()
             if not explosionPos or explosionPos == vector_origin then
                 explosionPos = dmginfo:GetDamagePosition()
@@ -89,8 +79,17 @@ if SERVER then
                 explosionPos = drone:GetPos()
             end
 
-            -- Если взрыв произошел в точке дрона дальше 150 юнитов от оператора на земле, отменяем сплеш урона
-            if operatorPos:Distance(explosionPos) > 150 then
+            -- Если оператор находился дальше 150 юнитов от места взрыва — отменяем урон
+            if operatorPos and operatorPos:Distance(explosionPos) > 150 then
+                dmginfo:SetDamage(0)
+                dmginfo:ScaleDamage(0)
+                return true
+            end
+
+            -- Если урон нанесён собственным дроном — отменяем урон
+            local attacker = dmginfo:GetAttacker()
+            local inflictor = dmginfo:GetInflictor()
+            if attacker == drone or inflictor == drone or attacker == target or inflictor == target then
                 dmginfo:SetDamage(0)
                 dmginfo:ScaleDamage(0)
                 return true
@@ -100,7 +99,6 @@ if SERVER then
 end
 
 if CLIENT then
-    -- 3. Включение управления мышкой для дронов
     hook.Add("Think", "Async_LVS_ForceMouseAimForDrones", function()
         local ply = LocalPlayer()
         if not IsValid(ply) then return end
@@ -108,14 +106,13 @@ if CLIENT then
         local veh = GetLVSVehicle(ply)
         if IsValid(veh) then
             local cls = veh:GetClass():lower()
-            local isDrone = veh.LVSUAV or veh.IsDrone or veh.IsCrocusKamikaze or veh.IsKVNDrone or cls:find("crocus") or cls:find("kvn") or cls:find("drone") or cls:find("uav")
+            local isDrone = veh.LVSUAV or veh.IsDrone or veh.IsCrocusKamikaze or veh.IsKVNDrone or cls:find("crocus") or cls:find("kvn") or cls:find("drone") or cls:find("uav") or cls:find("mavic")
             if isDrone then
                 ply._lvsMouseAim = true
             end
         end
     end)
 
-    -- 4. Камера от 1 лица строго с объектива дрона
     hook.Add("CalcView", "Async_LVS_Drone_Master_CalcView", function(ply, pos, angles, fov)
         if not IsValid(ply) or ply:GetViewEntity() ~= ply then return end
 
@@ -123,14 +120,13 @@ if CLIENT then
         if not IsValid(veh) or (veh.GetHP and veh:GetHP() <= 0) or veh._lvsIsDestroyed then return end
 
         local cls = veh:GetClass():lower()
-        local isDrone = veh.LVSUAV or veh.IsDrone or veh.IsCrocusKamikaze or veh.IsKVNDrone or cls:find("crocus") or cls:find("kvn") or cls:find("drone") or cls:find("uav")
+        local isDrone = veh.LVSUAV or veh.IsDrone or veh.IsCrocusKamikaze or veh.IsKVNDrone or cls:find("crocus") or cls:find("kvn") or cls:find("drone") or cls:find("uav") or cls:find("mavic")
 
         if isDrone then
             local pod = ply:InVehicle() and ply:GetVehicle() or nil
             local base = IsValid(pod) and (pod.lvsGetWeapon and pod:lvsGetWeapon() or nil) or nil
             local weapon = IsValid(base) and base:GetActiveWeapon() or (veh.GetActiveWeapon and veh:GetActiveWeapon() or nil)
 
-            -- Приоритет родной FPV-камеры дрона
             if weapon and weapon.CalcView then
                 local v = weapon.CalcView(veh, ply, pos, angles, fov, pod)
                 if istable(v) and isvector(v.origin) then
@@ -141,7 +137,6 @@ if CLIENT then
                 end
             end
 
-            -- Вынос камеры на передний объектив носа дрона
             local view = {}
             local camAtt = veh:LookupAttachment("camera")
             if camAtt == 0 then camAtt = veh:LookupAttachment("eyes") end

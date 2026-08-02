@@ -1,8 +1,5 @@
 --[[
-    Стабильный серверный модуль FPV-дронов (zAsync)
-    - Использование нативной системы LVS для управления, физики, звуков и камеры.
-    - Выход по клавише E (+use).
-    - Стартовые звуки (vkluchenie.mp3 -> 0.3s -> esc_startup.mp3) + блокировка 5.4с.
+    Серверный спавнер дронов (zAsync + Crocus Remastered + Mavic 2 Remastered)
 --]]
 
 if not SERVER then return end
@@ -15,6 +12,10 @@ local ASYNC_DRONE_CLASSES = {
     ["lvs_kvn1"] = true,
     ["lvs_kvn2"] = true,
     ["lvs_kvn3"] = true,
+    ["lvs_crocus"] = true,
+    ["lvs_crocus_remastered"] = true,
+    ["mavic_2_remastered"] = true,
+    ["lvs_mavic2"] = true,
 }
 
 local ActiveDrones = {}
@@ -40,15 +41,19 @@ end)
 
 hook.Add("EntityRemoved", "Async_CleanupDrone", function(ent)
     if not IsValid(ent) then return end
-    local cls = ent:GetClass()
-    if not ASYNC_DRONE_CLASSES[cls] then return end
+    local cls = ent:GetClass():lower()
+    local isDrone = ASYNC_DRONE_CLASSES[cls] or ent.LVSUAV or cls:find("crocus") or cls:find("mavic")
+    if not isDrone then return end
 
     for sid, drone in pairs(ActiveDrones) do
         if drone == ent then
             ActiveDrones[sid] = nil
             local owner = ent._AsyncOperator
             if IsValid(owner) then
-                if owner:InVehicle() then owner:ExitVehicle() end
+                if owner:InVehicle() and owner._LVSGroundPos then
+                    owner:ExitVehicle()
+                    owner:SetPos(owner._LVSGroundPos)
+                end
                 owner:SetNWEntity("KVN_ActiveDrone", NULL)
                 net.Start("Async_DroneStatus")
                     net.WriteUInt(0, 2)
@@ -62,8 +67,10 @@ end)
 net.Receive("Async_DisconnectDrone", function(len, ply)
     if not IsValid(ply) then return end
 
+    local groundPos = ply._LVSGroundPos
     if ply:InVehicle() then
         ply:ExitVehicle()
+        if groundPos then ply:SetPos(groundPos) end
     end
 
     local activeDrone = ply:GetNWEntity("KVN_ActiveDrone")
@@ -81,7 +88,10 @@ net.Receive("Async_SpawnDrone", function(len, ply)
     local droneClass = net.ReadString()
     local sid = ply:SteamID()
 
-    if not ASYNC_DRONE_CLASSES[droneClass] then return end
+    local clsLower = droneClass:lower()
+    if not (ASYNC_DRONE_CLASSES[clsLower] or clsLower:find("crocus") or clsLower:find("mavic") or clsLower:find("kvn")) then
+        return
+    end
 
     local now = CurTime()
     if SpawnCooldowns[sid] and now < SpawnCooldowns[sid] then return end
@@ -90,6 +100,9 @@ net.Receive("Async_SpawnDrone", function(len, ply)
         ActiveDrones[sid]:Remove()
         ActiveDrones[sid] = nil
     end
+
+    -- Запоминаем наземную позицию оператора перед входом для защиты и возврата
+    ply._LVSGroundPos = ply:GetPos()
 
     local spawnPos = ply:GetPos() + ply:GetForward() * 80 + Vector(0, 0, 30)
     local tr = util.TraceLine({
@@ -103,6 +116,11 @@ net.Receive("Async_SpawnDrone", function(len, ply)
     end
 
     local drone = ents.Create(droneClass)
+    if not IsValid(drone) then
+        -- Единый фоллбэк если специфический класс не установлен
+        drone = ents.Create("lvs_kvn1")
+    end
+
     if not IsValid(drone) then return end
 
     drone:SetPos(spawnPos)
@@ -122,7 +140,6 @@ net.Receive("Async_SpawnDrone", function(len, ply)
 
     ply:SetNWEntity("KVN_ActiveDrone", drone)
 
-    -- Нативная посадка водителя LVS для 100% управления и стабильной камеры
     timer.Simple(0.1, function()
         if not IsValid(drone) or not IsValid(ply) then return end
         local driverSeat = drone.GetDriverSeat and drone:GetDriverSeat()
@@ -131,7 +148,6 @@ net.Receive("Async_SpawnDrone", function(len, ply)
         end
     end)
 
-    -- Стартовая звуковая последовательность BLHeli
     ply:EmitSound("zasync/vkluchenie.mp3", 75, 100, 1)
 
     timer.Simple(0.3, function()

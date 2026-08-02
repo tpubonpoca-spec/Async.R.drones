@@ -1,10 +1,5 @@
 --[[
-    Минималистичный терминал BIOS / BSOD для FPV-дронов (zAsync)
-    Файл: lua/autorun/client/cl_async_gamepad_ui.lua
-
-    - Строгий терминальный стиль BIOS / BSOD по клавише F6.
-    - Блокировка ввода во время стартовой звуковой последовательности (5.4с).
-    - Очищенный минималистичный HUD без лишних элементов.
+    Терминал BIOS v1.04 (zAsync + Crocus Remastered + Mavic 2 Remastered)
 --]]
 
 if not CLIENT then return end
@@ -38,10 +33,25 @@ local DRONES = {
         payload = "HEAVY FRAME",
         color = Color(240, 180, 0),
     },
+    {
+        class = "lvs_crocus_remastered",
+        name = "4. CROCUS REMASTERED",
+        desc = "CROCUS REMASTERED FPV UNIT / HIGH MANEUVERABILITY",
+        speed = "130 KM/H",
+        payload = "CROCUS STRIKE",
+        color = Color(0, 255, 140),
+    },
+    {
+        class = "mavic_2_remastered",
+        name = "5. MAVIC 2 REMASTERED",
+        desc = "MAVIC 2 REMASTERED FPV UNIT / HIGH ZOOM OPTICS",
+        speed = "70 KM/H",
+        payload = "ZOOM OPTICS",
+        color = Color(255, 120, 0),
+    },
 }
 
--- BIOS / BSOD Палитра
-local BIOS_BG = Color(0, 0, 128, 245)      -- Классический синий BIOS / BSOD
+local BIOS_BG = Color(0, 0, 128, 245)
 local BIOS_PANEL = Color(0, 0, 96, 250)
 local BIOS_BORDER = Color(255, 255, 255, 255)
 local BIOS_WHITE = Color(255, 255, 255, 255)
@@ -75,7 +85,7 @@ function ASYNC_UI.OpenMenu()
 
     local frame = vgui.Create("DFrame")
     ASYNC_UI.Frame = frame
-    frame:SetSize(680, 440)
+    frame:SetSize(720, 460)
     frame:Center()
     frame:SetTitle("")
     frame:SetDraggable(true)
@@ -96,7 +106,7 @@ function ASYNC_UI.OpenMenu()
 
     local closeBtn = vgui.Create("DButton", frame)
     closeBtn:SetSize(24, 20)
-    closeBtn:SetPos(680 - 28, 5)
+    closeBtn:SetPos(720 - 28, 5)
     closeBtn:SetText("X")
     closeBtn:SetFont("BIOS_Header")
     closeBtn:SetTextColor(Color(255, 80, 80))
@@ -115,13 +125,13 @@ function ASYNC_UI.OpenMenu()
 
     local scroll = vgui.Create("DScrollPanel", frame)
     scroll:SetPos(12, 42)
-    scroll:SetSize(310, 380)
+    scroll:SetSize(330, 400)
 
     for i, droneInfo in ipairs(DRONES) do
         local btn = scroll:Add("DButton")
-        btn:SetSize(300, 75)
+        btn:SetSize(320, 72)
         btn:Dock(TOP)
-        btn:DockMargin(0, 0, 0, 8)
+        btn:DockMargin(0, 0, 0, 6)
         btn:SetText("")
 
         btn.Paint = function(s, w, h)
@@ -132,9 +142,9 @@ function ASYNC_UI.OpenMenu()
             surface.SetDrawColor(isSel and BIOS_YELLOW or BIOS_BORDER)
             surface.DrawOutlinedRect(0, 0, w, h, isSel and 2 or 1)
 
-            draw.SimpleText(droneInfo.name, "BIOS_Font", 12, 10, isSel and BIOS_YELLOW or BIOS_WHITE, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
-            draw.SimpleText("SPEED: " .. droneInfo.speed, "BIOS_Font", 12, 30, BIOS_CYAN, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
-            draw.SimpleText("LOAD:  " .. droneInfo.payload, "BIOS_Font", 12, 48, BIOS_MUTED, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+            draw.SimpleText(droneInfo.name, "BIOS_Font", 10, 8, isSel and BIOS_YELLOW or BIOS_WHITE, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+            draw.SimpleText("SPEED: " .. droneInfo.speed, "BIOS_Font", 10, 28, BIOS_CYAN, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+            draw.SimpleText("LOAD:  " .. droneInfo.payload, "BIOS_Font", 10, 46, BIOS_MUTED, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
         end
 
         btn.DoClick = function()
@@ -143,8 +153,8 @@ function ASYNC_UI.OpenMenu()
     end
 
     local rightPanel = vgui.Create("DPanel", frame)
-    rightPanel:SetPos(334, 42)
-    rightPanel:SetSize(334, 380)
+    rightPanel:SetPos(354, 42)
+    rightPanel:SetSize(354, 400)
     rightPanel.Paint = function(s, w, h)
         draw.RoundedBox(0, 0, 0, w, h, BIOS_PANEL)
         surface.SetDrawColor(BIOS_BORDER)
@@ -164,11 +174,12 @@ function ASYNC_UI.OpenMenu()
         draw.SimpleText("• MAX SPEED: " .. info.speed, "BIOS_Font", 10, 144, BIOS_WHITE, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
         draw.SimpleText("• PAYLOAD:   " .. info.payload, "BIOS_Font", 10, 166, BIOS_WHITE, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
         draw.SimpleText("• ESC POST:  5.4 SECONDS", "BIOS_Font", 10, 188, BIOS_YELLOW, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+        draw.SimpleText("• DAMAGE PROT: ACTIVE (>150u)", "BIOS_Font", 10, 210, Color(0, 255, 140), TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
     end
 
     local spawnBtn = vgui.Create("DButton", rightPanel)
-    spawnBtn:SetSize(314, 40)
-    spawnBtn:SetPos(10, 260)
+    spawnBtn:SetSize(334, 40)
+    spawnBtn:SetPos(10, 280)
     spawnBtn:SetFont("BIOS_Header")
     spawnBtn:SetText("[ LAUNCH DRONE ]")
     spawnBtn:SetTextColor(BIOS_WHITE)
@@ -190,8 +201,8 @@ function ASYNC_UI.OpenMenu()
     end
 
     local disconnectBtn = vgui.Create("DButton", rightPanel)
-    disconnectBtn:SetSize(314, 34)
-    disconnectBtn:SetPos(10, 312)
+    disconnectBtn:SetSize(334, 34)
+    disconnectBtn:SetPos(10, 332)
     disconnectBtn:SetFont("BIOS_Font")
     disconnectBtn:SetText("[ DISCONNECT / EXIT ]")
     disconnectBtn:SetTextColor(Color(255, 180, 180))
@@ -209,7 +220,6 @@ function ASYNC_UI.OpenMenu()
     end
 end
 
--- Блокировка ввода во время 5.4-секундной стартовой звуковой последовательности
 hook.Add("CreateMove", "Async_BIOS_BlockInputsDuringBoot", function(cmd)
     local ply = LocalPlayer()
     if not IsValid(ply) then return end
@@ -227,7 +237,6 @@ hook.Add("CreateMove", "Async_BIOS_BlockInputsDuringBoot", function(cmd)
     end
 end)
 
--- Минималистичный BIOS HUD
 hook.Add("HUDPaint", "Async_FPV_BIOS_HUD", function()
     local ply = LocalPlayer()
     if not IsValid(ply) then return end
@@ -256,14 +265,12 @@ hook.Add("HUDPaint", "Async_FPV_BIOS_HUD", function()
         draw.SimpleText("BLHeli ESC TESTING...", "BIOS_Font", w * 0.5, h * 0.43, BIOS_CYAN, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
         draw.SimpleText("LOCKOUT: " .. string.format("%.1f", remTime) .. "S", "BIOS_Timer", w * 0.5, h * 0.53, BIOS_WHITE, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
     else
-        -- Прицел
         surface.SetDrawColor(0, 255, 0, 200)
         surface.DrawOutlinedRect(w * 0.5 - 10, h * 0.5 - 10, 20, 20, 1)
         surface.DrawLine(w * 0.5 - 4, h * 0.5, w * 0.5 + 4, h * 0.5)
         surface.DrawLine(w * 0.5, h * 0.5 - 4, w * 0.5, h * 0.5 + 4)
     end
 
-    -- Статусная строка BIOS
     surface.SetDrawColor(0, 0, 96, 220)
     surface.DrawRect(10, 10, 280, 40)
     surface.SetDrawColor(BIOS_BORDER)
