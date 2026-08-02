@@ -20,8 +20,9 @@ SWEP.Spawnable = true
 SWEP.AdminSpawnable = true
 SWEP.AdminOnly = false
 
-SWEP.ViewModel = "models/weapons/w_async_gamepad.mdl"
+SWEP.ViewModel = "models/weapons/v_async_gamepad.mdl"
 SWEP.WorldModel = "models/weapons/w_async_gamepad.mdl"
+SWEP.UseHands = true
 
 if CLIENT then
     SWEP.WepSelectIcon = Material("entities/async_gamepad.png")
