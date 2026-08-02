@@ -1,227 +1,325 @@
 --[[
-    Клиентский интерфейс выбора и управления дронами (Async Gamepad)
+    Клиентский модуль управления и F6 меню FPV-дронов (zAsync)
     Файл: lua/autorun/client/cl_async_gamepad_ui.lua
 
-    Рисует экран выбора дрона поверх HUD и обрабатывает
-    обратную связь от сервера о состоянии запущенного дрона.
+    - Русский строгий военный (cyber-hacker) стиль меню по клавише F6.
+    - Отрисовка FPV камеры прямо на экран оператора, стоящего на земле.
+    - Динамический HUD с отображением инициализации ESC (5.4с), заряда, уровня сигнала и тепловизора.
 --]]
 
 if not CLIENT then return end
 
--- Состояния интерфейса
-local ASYNC_UI = ASYNC_UI or {}
+ASYNC_UI = ASYNC_UI or {}
 ASYNC_UI.IsOpen = false
-ASYNC_UI.SelectedIndex = 1
-ASYNC_UI.ActiveDrone = nil
-ASYNC_UI.StatusText = ""
-ASYNC_UI.StatusTime = 0
+ASYNC_UI.SelectedIdx = 1
 
--- Шрифты
-if not ASYNC_UI.FontsCreated then
-    surface.CreateFont("AsyncGP_Title", {
-        font      = "Roboto",
-        size      = 32,
-        weight    = 700,
-        antialias = true,
-        extended  = true,
-    })
-    surface.CreateFont("AsyncGP_Button", {
-        font      = "Roboto",
-        size      = 24,
-        weight    = 600,
-        antialias = true,
-        extended  = true,
-    })
-    surface.CreateFont("AsyncGP_Desc", {
-        font      = "Roboto",
-        size      = 18,
-        weight    = 400,
-        antialias = true,
-        extended  = true,
-    })
-    surface.CreateFont("AsyncGP_Status", {
-        font      = "Roboto",
-        size      = 20,
-        weight    = 500,
-        antialias = true,
-        extended  = true,
-    })
-    ASYNC_UI.FontsCreated = true
-end
-
--- Данные дронов
-local DRONE_LIST = {
+local DRONES = {
     {
-        class  = "lvs_kvn1",
-        name   = "KVN-1",
-        desc   = "Лёгкий ударный дрон-камикадзе.\nОптоволокно, 300г ВВ, HEAT-заряд.",
-        hp     = 100,
-        speed  = "~90 км/ч",
-        time   = "~3 мин",
-        color  = Color(220, 60, 60),
+        class = "lvs_kvn1",
+        name = "KVN-1 (Камикадзе)",
+        desc = "Ударный FPV-дрон с кумулятивным зарядом ПВ-1. Высокая скорость и маневренность.",
+        speed = "120 км/ч",
+        payload = "Кумулятивный ВУ",
+        color = Color(220, 60, 60),
     },
     {
-        class  = "lvs_kvn2",
-        name   = "KVN-2",
-        desc   = "Разведывательный дрон с тепловизором.\nFLIR-камера, оптоволокно.",
-        hp     = 100,
-        speed  = "~90 км/ч",
-        time   = "~3 мин",
-        color  = Color(60, 180, 220),
+        class = "lvs_kvn2",
+        name = "KVN-2 (Разведка / FLIR)",
+        desc = "Оптико-электронный разведчик с тепловизионным каналом и увеличенной дальностью связи.",
+        speed = "95 км/ч",
+        payload = "FLIR Тепловизор",
+        color = Color(0, 200, 255),
     },
     {
-        class  = "lvs_kvn3",
-        name   = "KVN-3",
-        desc   = "Тяжёлый ударный дрон.\nУсиленный заряд, фрагментация.",
-        hp     = 100,
-        speed  = "~80 км/ч",
-        time   = "~3 мин",
-        color  = Color(220, 180, 40),
+        class = "lvs_kvn3",
+        name = "KVN-3 (Тяжёлый)",
+        desc = "Усиленный квадрокоптер для транспортировки тяжёлого снаряжения и разминирования.",
+        speed = "80 км/ч",
+        payload = "Усиленный планер",
+        color = Color(240, 190, 40),
     },
 }
 
--- Цвета UI
-local CLR_BG       = Color(15, 15, 20, 230)
-local CLR_CARD     = Color(30, 32, 38, 255)
-local CLR_CARD_SEL = Color(45, 48, 58, 255)
-local CLR_BORDER   = Color(70, 75, 90, 200)
-local CLR_WHITE    = Color(230, 230, 235)
-local CLR_GRAY     = Color(140, 145, 160)
-local CLR_GREEN    = Color(80, 220, 120)
-local CLR_RED      = Color(220, 70, 70)
-local CLR_BTN      = Color(50, 140, 80, 255)
-local CLR_BTN_HOV  = Color(60, 170, 95, 255)
+-- Создание шрифтов
+surface.CreateFont("Async_Title", { font = "Roboto", size = 22, weight = 800 })
+surface.CreateFont("Async_Header", { font = "Roboto", size = 18, weight = 700 })
+surface.CreateFont("Async_Text", { font = "Roboto", size = 15, weight = 500 })
+surface.CreateFont("Async_Small", { font = "Roboto", size = 13, weight = 400 })
+surface.CreateFont("Async_HUD_Big", { font = "Roboto", size = 32, weight = 900 })
 
--- Статусная строка (временное сообщение внизу)
-local function ShowStatus(text, duration)
-    ASYNC_UI.StatusText = text
-    ASYNC_UI.StatusTime = CurTime() + (duration or 3)
-end
-
--- Обратная связь от сервера
-net.Receive("Async_DroneStatus", function()
-    local code = net.ReadUInt(2)
-    if code == 1 then
-        -- Дрон запущен, закрываем меню
-        ASYNC_UI.ActiveDrone = net.ReadEntity()
-        ASYNC_UI.IsOpen = false
-        gui.EnableScreenClicker(false)
-        ShowStatus("Дрон активен. Управление передано.", 4)
-    elseif code == 0 then
-        -- Дрон уничтожен
-        ASYNC_UI.ActiveDrone = nil
-        ShowStatus("Связь потеряна.", 4)
+-- Клавиша F6 открывает / закрывает меню
+hook.Add("PlayerButtonDown", "Async_F6MenuToggle", function(ply, button)
+    if button == KEY_F6 then
+        ASYNC_UI.ToggleMenu()
     end
 end)
 
--- Открытие/закрытие меню по клавише (F6)
-hook.Add("PlayerButtonDown", "Async_Gamepad_ToggleUI", function(ply, button)
-    if button ~= KEY_F6 then return end
-    if not IsValid(ply) then return end
-
-    -- Если игрок управляет дроном — не открывать
-    if IsValid(ply:GetVehicle()) then return end
-
+function ASYNC_UI.ToggleMenu()
     ASYNC_UI.IsOpen = not ASYNC_UI.IsOpen
-    gui.EnableScreenClicker(ASYNC_UI.IsOpen)
-end)
-
--- Запрос спавна дрона
-local function RequestSpawnDrone(droneClass)
-    net.Start("Async_SpawnDrone")
-        net.WriteString(droneClass)
-    net.SendToServer()
-    ShowStatus("Запуск " .. droneClass .. "...", 3)
+    if ASYNC_UI.IsOpen then
+        ASYNC_UI.OpenMenu()
+    else
+        if IsValid(ASYNC_UI.Frame) then
+            ASYNC_UI.Frame:Close()
+        end
+    end
 end
 
--- Отрисовка экрана выбора дрона
-hook.Add("HUDPaint", "Async_Gamepad_DrawMenu", function()
-    -- Статусная строка (рисуется всегда, если есть текст)
-    if ASYNC_UI.StatusText ~= "" and CurTime() < ASYNC_UI.StatusTime then
-        local sw, sh = ScrW(), ScrH()
-        local alpha = math.Clamp((ASYNC_UI.StatusTime - CurTime()) * 255, 0, 255)
-        draw.SimpleText(ASYNC_UI.StatusText, "AsyncGP_Status", sw * 0.5, sh - 60, Color(CLR_WHITE.r, CLR_WHITE.g, CLR_WHITE.b, alpha), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+function ASYNC_UI.OpenMenu()
+    if IsValid(ASYNC_UI.Frame) then ASYNC_UI.Frame:Remove() end
+
+    local ply = LocalPlayer()
+    local activeDrone = ply:GetNWEntity("KVN_ActiveDrone")
+
+    local frame = vgui.Create("DFrame")
+    ASYNC_UI.Frame = frame
+    frame:SetSize(720, 480)
+    frame:Center()
+    frame:SetTitle("")
+    frame:SetDraggable(true)
+    frame:ShowCloseButton(false)
+    frame:MakePopup()
+
+    local COLOR_BG = Color(14, 17, 23, 250)
+    local COLOR_PANEL = Color(22, 27, 36, 240)
+    local COLOR_BORDER = Color(0, 220, 255, 180)
+    local COLOR_ACCENT = Color(0, 255, 140, 255)
+    local COLOR_TEXT = Color(230, 235, 245)
+    local COLOR_MUTED = Color(130, 140, 160)
+
+    frame.Paint = function(s, w, h)
+        draw.RoundedBox(6, 0, 0, w, h, COLOR_BG)
+        surface.SetDrawColor(COLOR_BORDER)
+        surface.DrawOutlinedRect(0, 0, w, h, 2)
+
+        -- Шапка меню в стиле военного терминала
+        surface.SetDrawColor(28, 35, 48, 255)
+        surface.DrawRect(2, 2, w - 4, 38)
+        surface.SetDrawColor(COLOR_ACCENT)
+        surface.DrawRect(2, 38, w - 4, 2)
+
+        draw.SimpleText("ОПЕРАТОРСКИЙ ТЕРМИНАЛ НСУ БПЛА [F6]", "Async_Title", 16, 10, COLOR_ACCENT, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+        draw.SimpleText(IsValid(activeDrone) and " СВЯЗЬ: АКТИВНА" or " СТАТУС: ОЖИДАНИЕ", "Async_Small", w - 40, 14, IsValid(activeDrone) and Color(0, 255, 120) or COLOR_MUTED, TEXT_ALIGN_RIGHT, TEXT_ALIGN_TOP)
     end
 
-    if not ASYNC_UI.IsOpen then return end
+    -- Кнопка закрытия
+    local closeBtn = vgui.Create("DButton", frame)
+    closeBtn:SetSize(28, 24)
+    closeBtn:SetPos(720 - 34, 8)
+    closeBtn:SetText("X")
+    closeBtn:SetFont("Async_Header")
+    closeBtn:SetTextColor(Color(255, 80, 80))
+    closeBtn.Paint = function(s, w, h)
+        if s:IsHovered() then
+            draw.RoundedBox(4, 0, 0, w, h, Color(180, 40, 40, 200))
+            s:SetTextColor(Color(255, 255, 255))
+        else
+            draw.RoundedBox(4, 0, 0, w, h, Color(40, 45, 55, 150))
+            s:SetTextColor(Color(255, 100, 100))
+        end
+    end
+    closeBtn.DoClick = function()
+        frame:Close()
+        ASYNC_UI.IsOpen = false
+    end
 
-    local sw, sh = ScrW(), ScrH()
-    local panelW = 420
-    local panelH = 480
-    local px = (sw - panelW) * 0.5
-    local py = (sh - panelH) * 0.5
+    -- Левая панель: выбор дрона
+    local scroll = vgui.Create("DScrollPanel", frame)
+    scroll:SetPos(16, 54)
+    scroll:SetSize(320, 408)
 
-    -- Фон
-    draw.RoundedBox(8, px, py, panelW, panelH, CLR_BG)
-    draw.RoundedBox(8, px + 1, py + 1, panelW - 2, panelH - 2, Color(0, 0, 0, 0))
-    surface.SetDrawColor(CLR_BORDER)
-    surface.DrawOutlinedRect(px, py, panelW, panelH, 1)
+    for i, droneInfo in ipairs(DRONES) do
+        local btn = scroll:Add("DButton")
+        btn:SetSize(310, 85)
+        btn:Dock(TOP)
+        btn:DockMargin(0, 0, 0, 10)
+        btn:SetText("")
 
-    -- Заголовок
-    draw.SimpleText("ПУЛЬТ УПРАВЛЕНИЯ", "AsyncGP_Title", px + panelW * 0.5, py + 20, CLR_WHITE, TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP)
+        btn.Paint = function(s, w, h)
+            local isSel = (ASYNC_UI.SelectedIdx == i)
+            local bgCol = isSel and Color(30, 42, 58, 250) or COLOR_PANEL
+            draw.RoundedBox(4, 0, 0, w, h, bgCol)
 
-    -- Линия под заголовком
-    surface.SetDrawColor(CLR_BORDER)
-    surface.DrawRect(px + 20, py + 58, panelW - 40, 1)
+            local borderCol = isSel and droneInfo.color or Color(50, 60, 75)
+            surface.SetDrawColor(borderCol)
+            surface.DrawOutlinedRect(0, 0, w, h, isSel and 2 or 1)
 
-    -- Карточки дронов
-    local cardH = 100
-    local cardMargin = 10
-    local startY = py + 70
-    local mx, my = gui.MousePos()
+            surface.SetDrawColor(droneInfo.color)
+            surface.DrawRect(4, 8, 4, h - 16)
 
-    for i, drone in ipairs(DRONE_LIST) do
-        local cy = startY + (i - 1) * (cardH + cardMargin)
-        local isHovered = mx >= px + 15 and mx <= px + panelW - 15 and my >= cy and my <= cy + cardH
-        local cardColor = isHovered and CLR_CARD_SEL or CLR_CARD
-
-        -- Карточка
-        draw.RoundedBox(6, px + 15, cy, panelW - 30, cardH, cardColor)
-
-        -- Полоска цвета типа дрона
-        draw.RoundedBoxEx(6, px + 15, cy, 5, cardH, drone.color, true, false, true, false)
-
-        -- Название
-        draw.SimpleText(drone.name, "AsyncGP_Button", px + 35, cy + 10, CLR_WHITE, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
-
-        -- Описание (первая строка)
-        local descLines = string.Explode("\n", drone.desc)
-        for li, line in ipairs(descLines) do
-            draw.SimpleText(line, "AsyncGP_Desc", px + 35, cy + 34 + (li - 1) * 18, CLR_GRAY, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+            draw.SimpleText(droneInfo.name, "Async_Header", 18, 10, COLOR_TEXT, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+            draw.SimpleText("Скорость: " .. droneInfo.speed .. " | " .. droneInfo.payload, "Async_Small", 18, 34, COLOR_MUTED, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
         end
 
-        -- Параметры справа
-        draw.SimpleText(drone.speed, "AsyncGP_Desc", px + panelW - 30, cy + 15, CLR_GRAY, TEXT_ALIGN_RIGHT, TEXT_ALIGN_TOP)
-        draw.SimpleText(drone.time, "AsyncGP_Desc", px + panelW - 30, cy + 35, CLR_GRAY, TEXT_ALIGN_RIGHT, TEXT_ALIGN_TOP)
-        draw.SimpleText("HP: " .. drone.hp, "AsyncGP_Desc", px + panelW - 30, cy + 55, CLR_GRAY, TEXT_ALIGN_RIGHT, TEXT_ALIGN_TOP)
+        btn.DoClick = function()
+            ASYNC_UI.SelectedIdx = i
+        end
+    end
 
-        -- Кнопка "Запуск"
-        local btnW, btnH = 90, 28
-        local btnX = px + panelW - 30 - btnW
-        local btnY = cy + cardH - btnH - 8
-        local btnHover = mx >= btnX and mx <= btnX + btnW and my >= btnY and my <= btnY + btnH
-        draw.RoundedBox(4, btnX, btnY, btnW, btnH, btnHover and CLR_BTN_HOV or CLR_BTN)
-        draw.SimpleText("ЗАПУСК", "AsyncGP_Desc", btnX + btnW * 0.5, btnY + btnH * 0.5, CLR_WHITE, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+    -- Правая панель: подробная спецификация и кнопки действий
+    local rightPanel = vgui.Create("DPanel", frame)
+    rightPanel:SetPos(352, 54)
+    rightPanel:SetSize(352, 408)
+    rightPanel.Paint = function(s, w, h)
+        draw.RoundedBox(4, 0, 0, w, h, COLOR_PANEL)
+        surface.SetDrawColor(COLOR_BORDER)
+        surface.DrawOutlinedRect(0, 0, w, h, 1)
 
-        -- Обработка клика
-        if btnHover and input.IsMouseDown(MOUSE_LEFT) then
-            if not ASYNC_UI._lastClick or CurTime() - ASYNC_UI._lastClick > 0.5 then
-                ASYNC_UI._lastClick = CurTime()
-                RequestSpawnDrone(drone.class)
+        local info = DRONES[ASYNC_UI.SelectedIdx]
+        if not info then return end
+
+        draw.SimpleText(info.name:upper(), "Async_Header", 16, 16, info.color, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+
+        -- Описание
+        local words = string.Explode(" ", info.desc)
+        local line1, line2 = "", ""
+        for _, word in ipairs(words) do
+            if #line1 < 32 then
+                line1 = line1 .. word .. " "
+            else
+                line2 = line2 .. word .. " "
             end
         end
+
+        draw.SimpleText(line1, "Async_Text", 16, 48, COLOR_TEXT, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+        draw.SimpleText(line2, "Async_Text", 16, 68, COLOR_TEXT, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+
+        surface.SetDrawColor(40, 50, 65)
+        surface.DrawLine(16, 100, w - 16, 100)
+
+        draw.SimpleText("ТАКТИКО-ТЕХНИЧЕСКИЕ ХАРАКТЕРИСТИКИ:", "Async_Small", 16, 112, COLOR_MUTED, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+        draw.SimpleText("• МАКС. СКОРОСТЬ: " .. info.speed, "Async_Text", 16, 134, COLOR_TEXT, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+        draw.SimpleText("•ПОЛЕЗНАЯ НАГРУЗКА: " .. info.payload, "Async_Text", 16, 156, COLOR_TEXT, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+        draw.SimpleText("• КАНАЛ СВЯЗИ: НСУ-433 (Кварц)", "Async_Text", 16, 178, COLOR_TEXT, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+        draw.SimpleText("• ВРЕМЯ ИНИЦИАЛИЗАЦИИ: 5.4 СЕК", "Async_Text", 16, 200, COLOR_TEXT, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
     end
 
-    -- Нижняя панель
-    local footerY = py + panelH - 40
-    surface.SetDrawColor(CLR_BORDER)
-    surface.DrawRect(px + 20, footerY, panelW - 40, 1)
-    draw.SimpleText("F6 — закрыть", "AsyncGP_Desc", px + panelW * 0.5, footerY + 12, CLR_GRAY, TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP)
+    -- Кнопка ЗАПУСК / ЗАМЕНА
+    local spawnBtn = vgui.Create("DButton", rightPanel)
+    spawnBtn:SetSize(320, 48)
+    spawnBtn:SetPos(16, 280)
+    spawnBtn:SetFont("Async_Header")
+    spawnBtn:SetText("ЗАПУСТИТЬ FPV ДРОН")
+    spawnBtn:SetTextColor(Color(255, 255, 255))
+    spawnBtn.Paint = function(s, w, h)
+        local bgCol = s:IsHovered() and Color(0, 200, 100) or Color(0, 160, 80)
+        draw.RoundedBox(4, 0, 0, w, h, bgCol)
+        surface.SetDrawColor(0, 255, 140)
+        surface.DrawOutlinedRect(0, 0, w, h, 1)
+    end
+    spawnBtn.DoClick = function()
+        local info = DRONES[ASYNC_UI.SelectedIdx]
+        if info then
+            net.Start("Async_SpawnDrone")
+                net.WriteString(info.class)
+            net.SendToServer()
+        end
+        frame:Close()
+        ASYNC_UI.IsOpen = false
+    end
+
+    -- Кнопка ОТКЛЮЧИТЬ СВЯЗЬ
+    local disconnectBtn = vgui.Create("DButton", rightPanel)
+    disconnectBtn:SetSize(320, 36)
+    disconnectBtn:SetPos(16, 340)
+    disconnectBtn:SetFont("Async_Text")
+    disconnectBtn:SetText("ОТКЛЮЧИТЬ АКТИВНЫЙ ДРОН [R]")
+    disconnectBtn:SetTextColor(Color(255, 180, 180))
+    disconnectBtn.Paint = function(s, w, h)
+        local bgCol = s:IsHovered() and Color(160, 40, 40) or Color(80, 30, 30)
+        draw.RoundedBox(4, 0, 0, w, h, bgCol)
+        surface.SetDrawColor(255, 80, 80)
+        surface.DrawOutlinedRect(0, 0, w, h, 1)
+    end
+    disconnectBtn.DoClick = function()
+        net.Start("Async_DisconnectDrone")
+        net.SendToServer()
+        frame:Close()
+        ASYNC_UI.IsOpen = false
+    end
+end
+
+-- Перехват CalcView для показа FPV камеры оператору, стоящему на земле
+hook.Add("CalcView", "Async_FPVOperatorView", function(ply, pos, angles, fov)
+    if not IsValid(ply) or not ply:Alive() then return end
+
+    local activeDrone = ply:GetNWEntity("KVN_ActiveDrone")
+    if not IsValid(activeDrone) then return end
+
+    -- Позиция камеры на дроне
+    local camPos = activeDrone:LocalToWorld(Vector(12, 0, 3))
+    local camAng = activeDrone:GetAngles()
+
+    local camAtt = activeDrone:LookupAttachment("camera")
+    if camAtt and camAtt > 0 then
+        local att = activeDrone:GetAttachment(camAtt)
+        if att and att.Pos and att.Pos ~= vector_origin then
+            camPos = att.Pos
+        end
+    end
+
+    return {
+        origin = camPos,
+        angles = camAng,
+        fov = 85,
+        drawviewer = false,
+    }
 end)
 
--- Скрытие стандартного HUD когда меню открыто
-hook.Add("HUDShouldDraw", "Async_Gamepad_HideHUD", function(name)
-    if ASYNC_UI.IsOpen then
-        if name == "CHudWeaponSelection" then return false end
+-- Клавиша R отключает связь с дроном
+hook.Add("PlayerButtonDown", "Async_RKeyDisconnect", function(ply, button)
+    if button == KEY_R and not vgui.CursorVisible() then
+        local activeDrone = ply:GetNWEntity("KVN_ActiveDrone")
+        if IsValid(activeDrone) then
+            net.Start("Async_DisconnectDrone")
+            net.SendToServer()
+        end
     end
+end)
+
+-- Отрисовка FPV HUD во время управления дроном
+hook.Add("HUDPaint", "Async_FPVOperatorHUD", function()
+    local ply = LocalPlayer()
+    if not IsValid(ply) then return end
+
+    local activeDrone = ply:GetNWEntity("KVN_ActiveDrone")
+    if not IsValid(activeDrone) then return end
+
+    local w, h = ScrW(), ScrH()
+    local ct = CurTime()
+
+    local lockUntil = activeDrone:GetNWFloat("Async_ControlLockTime", 0)
+    local isLocked = ct < lockUntil
+
+    -- 1. Экраны блокировки во время стартовой звуковой последовательности (5.4 секунды)
+    if isLocked then
+        local remTime = math.Round(lockUntil - ct, 1)
+
+        -- Полупрозрачная черная сетка инициализации
+        surface.SetDrawColor(0, 0, 0, 180)
+        surface.DrawRect(0, 0, w, h)
+
+        surface.SetDrawColor(0, 220, 255, 255)
+        surface.DrawOutlinedRect(w * 0.2, h * 0.3, w * 0.6, h * 0.4, 2)
+
+        draw.SimpleText("ИНИЦИАЛИЗАЦИЯ ESC И СИСТЕМЫ ПИТАНИЯ", "Async_Title", w * 0.5, h * 0.35, Color(0, 255, 140), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+        draw.SimpleText("БЛОКИРОВКА УПРАВЛЕНИЯ: " .. string.format("%.1f", remTime) .. " СЕК", "Async_HUD_Big", w * 0.5, h * 0.46, Color(255, 200, 40), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+        draw.SimpleText("Воспроизведение стартового звукового сигнала BLHeli...", "Async_Text", w * 0.5, h * 0.58, Color(180, 190, 210), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+    else
+        -- Прицел FPV
+        surface.SetDrawColor(0, 255, 120, 200)
+        surface.DrawOutlinedRect(w * 0.5 - 15, h * 0.5 - 15, 30, 30, 1)
+        surface.DrawLine(w * 0.5 - 5, h * 0.5, w * 0.5 + 5, h * 0.5)
+        surface.DrawLine(w * 0.5, h * 0.5 - 5, w * 0.5, h * 0.5 + 5)
+    end
+
+    -- Информационные плашки FPV
+    surface.SetDrawColor(15, 20, 28, 200)
+    surface.DrawRect(20, 20, 280, 80)
+    surface.SetDrawColor(0, 200, 255, 255)
+    surface.DrawOutlinedRect(20, 20, 280, 80, 1)
+
+    draw.SimpleText("КАНАЛ: FPV_LIVE (" .. activeDrone:GetClass():upper() .. ")", "Async_Small", 30, 28, Color(0, 220, 255), TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+    draw.SimpleText("СИГНАЛ: 100% | ОПЕРАТОР НА ЗЕМЛЕ", "Async_Text", 30, 48, Color(0, 255, 140), TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+    draw.SimpleText("[R] — Отключиться | [F6] — Меню", "Async_Small", 30, 72, Color(200, 200, 200), TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
 end)
